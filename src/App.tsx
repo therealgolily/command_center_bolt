@@ -8,6 +8,7 @@ import { ClientsPage } from './components/ClientsPage';
 import { MoneyPage } from './components/MoneyPage';
 import { SettingsPage } from './components/SettingsPage';
 import { QuickCaptureModal } from './components/QuickCaptureModal';
+import { ShortcutsModal } from './components/ShortcutsModal';
 import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
 import { supabase } from './lib/supabase';
 
@@ -17,12 +18,19 @@ function AppContent() {
   const { user, loading } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>('planning');
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   useKeyboardShortcut('k', () => {
     if (user) {
       setIsQuickCaptureOpen(true);
     }
   }, { ctrlOrCmd: true });
+
+  useKeyboardShortcut('?', () => {
+    if (user) {
+      setShowShortcuts(true);
+    }
+  });
 
   const handleQuickCapture = async (taskData: {
     title: string;
@@ -77,6 +85,8 @@ function AppContent() {
         onClose={() => setIsQuickCaptureOpen(false)}
         onSubmit={handleQuickCapture}
       />
+
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
     </>
   );
 }

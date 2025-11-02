@@ -1,5 +1,7 @@
-import { Calendar, CalendarDays, Users, DollarSign, Plus, Settings } from 'lucide-react';
+import { Calendar, CalendarDays, Users, DollarSign, Plus, Settings, Keyboard } from 'lucide-react';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { ShortcutsModal } from './ShortcutsModal';
 
 type Page = 'planning' | 'calendar' | 'clients' | 'money' | 'settings';
 
@@ -12,6 +14,7 @@ type AppLayoutProps = {
 
 export function AppLayout({ children, currentPage, onNavigate, onQuickCapture }: AppLayoutProps) {
   const { signOut } = useAuth();
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex">
@@ -86,6 +89,14 @@ export function AppLayout({ children, currentPage, onNavigate, onQuickCapture }:
             quick capture
           </button>
           <button
+            onClick={() => setShowShortcuts(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-md font-medium text-sm text-[#64748b] hover:bg-gray-100 transition-colors"
+            title="Keyboard shortcuts (?)"
+          >
+            <Keyboard size={18} />
+            shortcuts
+          </button>
+          <button
             onClick={() => onNavigate('settings')}
             className={`w-full flex items-center gap-2 px-3 py-2 rounded-md font-medium text-sm transition-colors ${
               currentPage === 'settings'
@@ -110,6 +121,8 @@ export function AppLayout({ children, currentPage, onNavigate, onQuickCapture }:
           {children}
         </div>
       </main>
+
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }
