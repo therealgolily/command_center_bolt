@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus } from 'lucide-react';
-import { DndContext, DragEndEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragOverEvent, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
 import { supabase, Task, Client } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { TaskCard } from './TaskCard';
@@ -15,6 +15,143 @@ type DayColumn = {
   tasks: Task[];
 };
 
+function DraggableInboxTask({ task }: { task: Task }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+  });
+
+  const style = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        opacity: isDragging ? 0.5 : 1,
+      }
+    : undefined;
+
+  return (
+    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+      <TaskCard task={task} onEdit={() => {}} onDelete={() => {}} />
+    </div>
+  );
+}
+
+function DroppableDayColumn({
+  day,
+  tasks,
+  clients,
+  isOver,
+  onTaskClick,
+  onAddTask,
+}: {
+  day: DayColumn;
+  tasks: Task[];
+  clients: Client[];
+  isOver: boolean;
+  onTaskClick: (task: Task) => void;
+  onAddTask: () => void;
+}) {
+  const { setNodeRef } = useDroppable({
+    id: `day-${day.dateString}`,
+  });
+
+  const formatTimeBlock = (start: string, end: string) => {
+    const startTime = new Date(start).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    const endTime = new Date(end).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return `${startTime} - ${endTime}`;
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`bg-white rounded-lg border-2 p-3 min-h-[400px] transition-all ${
+        day.isToday
+          ? 'border-[#3b82f6] bg-blue-50/30'
+          : day.isPast
+          ? 'border-[#e2e8f0] opacity-60'
+          : 'border-[#e2e8f0]'
+      } ${isOver && !day.isPast ? 'border-[#3b82f6] bg-blue-50 shadow-lg' : ''}`}
+    >
+      <div className="mb-3">
+        <div className="text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+          {day.dayName}
+        </div>
+        <div
+          className={`text-2xl font-bold ${
+            day.isToday ? 'text-[#3b82f6]' : 'text-[#1e293b]'
+          }`}
+        >
+          {day.date.getDate()}
+        </div>
+      </div>
+
+      {isOver && !day.isPast && (
+        <div className="mb-3 p-2 bg-blue-100 border border-blue-300 rounded text-center">
+          <p className="text-xs font-medium text-[#3b82f6]">drop here</p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {tasks.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-xs text-[#94a3b8] mb-2">no tasks</p>
+            <button
+              onClick={onAddTask}
+              className="text-xs text-[#3b82f6] hover:text-blue-600 flex items-center gap-1 mx-auto"
+            >
+              <Plus size={12} />
+              add task
+            </button>
+          </div>
+        ) : (
+          tasks.map((task) => (
+            <div key={task.id} className="text-xs">
+              <div
+                className={`p-2 rounded border ${
+                  task.priority === 'urgent'
+                    ? 'border-l-2 border-l-[#ef4444] bg-red-50/50'
+                    : 'border-[#e2e8f0] bg-gray-50'
+                } hover:shadow-sm transition-shadow cursor-pointer`}
+                onClick={() => onTaskClick(task)}
+              >
+                <div className="font-medium text-[#1e293b] mb-1 truncate">
+                  {task.title}
+                </div>
+                {task.time_block_start && task.time_block_end && (
+                  <div className="text-[10px] text-[#3b82f6] font-medium">
+                    {formatTimeBlock(task.time_block_start, task.time_block_end)}
+                  </div>
+                )}
+                {task.client_id && (
+                  <div className="text-[10px] text-[#64748b] mt-1">
+                    {clients.find((c) => c.id === task.client_id)?.name}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {tasks.length > 0 && (
+        <button
+          onClick={onAddTask}
+          className="text-xs text-[#94a3b8] hover:text-[#3b82f6] flex items-center gap-1 mt-2 w-full justify-center py-1 border-t border-[#e2e8f0]"
+        >
+          <Plus size={12} />
+          add
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function CalendarPage() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -25,6 +162,7 @@ export function CalendarPage() {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [inboxCollapsed, setInboxCollapsed] = useState(false);
   const [creatingTaskForDate, setCreatingTaskForDate] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -135,14 +273,19 @@ export function CalendarPage() {
   const inboxTasks = tasks.filter((t) => t.status === 'inbox');
   const dayColumns = getDayColumns();
 
-  const handleDragStart = (event: any) => {
+  const handleDragStart = (event: DragStartEvent) => {
     const task = tasks.find((t) => t.id === event.active.id);
     setActiveTask(task || null);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    setOverId(event.over?.id as string | null);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
+    setOverId(null);
 
     if (!over) return;
 
@@ -160,7 +303,7 @@ export function CalendarPage() {
       today.setHours(0, 0, 0, 0);
 
       if (targetDateObj < today) {
-        alert('Cannot schedule tasks on past dates');
+        alert('cannot schedule tasks on past dates');
         return;
       }
 
@@ -216,20 +359,6 @@ export function CalendarPage() {
     }
   };
 
-  const formatTimeBlock = (start: string, end: string) => {
-    const startTime = new Date(start).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-    const endTime = new Date(end).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-    return `${startTime} - ${endTime}`;
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -239,7 +368,7 @@ export function CalendarPage() {
   }
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -290,17 +419,7 @@ export function CalendarPage() {
                     <p className="text-xs text-[#94a3b8] text-center py-4">no inbox tasks</p>
                   ) : (
                     inboxTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        id={task.id}
-                        className="cursor-move"
-                      >
-                        <TaskCard
-                          task={task}
-                          onEdit={setEditingTask}
-                          onDelete={handleDeleteTask}
-                        />
-                      </div>
+                      <DraggableInboxTask key={task.id} task={task} />
                     ))
                   )}
                 </div>
@@ -322,82 +441,15 @@ export function CalendarPage() {
           <div className="flex-1 min-w-0">
             <div className="grid grid-cols-7 gap-2">
               {dayColumns.map((day) => (
-                <div
+                <DroppableDayColumn
                   key={day.dateString}
-                  id={`day-${day.dateString}`}
-                  className={`bg-white rounded-lg border-2 p-3 min-h-[400px] ${
-                    day.isToday
-                      ? 'border-[#3b82f6] bg-blue-50/30'
-                      : day.isPast
-                      ? 'border-[#e2e8f0] opacity-60'
-                      : 'border-[#e2e8f0]'
-                  }`}
-                >
-                  <div className="mb-3">
-                    <div className="text-xs font-semibold text-[#64748b] uppercase tracking-wide">
-                      {day.dayName}
-                    </div>
-                    <div
-                      className={`text-2xl font-bold ${
-                        day.isToday ? 'text-[#3b82f6]' : 'text-[#1e293b]'
-                      }`}
-                    >
-                      {day.date.getDate()}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {day.tasks.length === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-xs text-[#94a3b8] mb-2">no tasks</p>
-                        <button
-                          onClick={() => setCreatingTaskForDate(day.dateString)}
-                          className="text-xs text-[#3b82f6] hover:text-blue-600 flex items-center gap-1 mx-auto"
-                        >
-                          <Plus size={12} />
-                          add task
-                        </button>
-                      </div>
-                    ) : (
-                      day.tasks.map((task) => (
-                        <div key={task.id} className="text-xs">
-                          <div
-                            className={`p-2 rounded border ${
-                              task.priority === 'urgent'
-                                ? 'border-l-2 border-l-[#ef4444] bg-red-50/50'
-                                : 'border-[#e2e8f0] bg-gray-50'
-                            } hover:shadow-sm transition-shadow cursor-pointer`}
-                            onClick={() => setEditingTask(task)}
-                          >
-                            <div className="font-medium text-[#1e293b] mb-1 truncate">
-                              {task.title}
-                            </div>
-                            {task.time_block_start && task.time_block_end && (
-                              <div className="text-[10px] text-[#3b82f6] font-medium">
-                                {formatTimeBlock(task.time_block_start, task.time_block_end)}
-                              </div>
-                            )}
-                            {task.client_id && (
-                              <div className="text-[10px] text-[#64748b] mt-1">
-                                {clients.find((c) => c.id === task.client_id)?.name}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {day.tasks.length > 0 && (
-                    <button
-                      onClick={() => setCreatingTaskForDate(day.dateString)}
-                      className="text-xs text-[#94a3b8] hover:text-[#3b82f6] flex items-center gap-1 mt-2 w-full justify-center py-1 border-t border-[#e2e8f0]"
-                    >
-                      <Plus size={12} />
-                      add
-                    </button>
-                  )}
-                </div>
+                  day={day}
+                  tasks={day.tasks}
+                  clients={clients}
+                  isOver={overId === `day-${day.dateString}`}
+                  onTaskClick={setEditingTask}
+                  onAddTask={() => setCreatingTaskForDate(day.dateString)}
+                />
               ))}
             </div>
           </div>
