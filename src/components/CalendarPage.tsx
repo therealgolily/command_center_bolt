@@ -5,6 +5,7 @@ import { supabase, Task, Client } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { TaskCard } from './TaskCard';
 import { EditTaskModal } from './EditTaskModal';
+import { QuickCaptureModal } from './QuickCaptureModal';
 
 type DayColumn = {
   date: Date;
@@ -109,10 +110,12 @@ function DroppableInbox({
   tasks,
   isOver,
   onCollapse,
+  onAddTask,
 }: {
   tasks: Task[];
   isOver: boolean;
   onCollapse: () => void;
+  onAddTask: () => void;
 }) {
   const { setNodeRef } = useDroppable({
     id: 'inbox',
@@ -137,12 +140,21 @@ function DroppableInbox({
             hide
           </button>
         </div>
+
+        <button
+          onClick={onAddTask}
+          className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-[#3b82f6] text-white font-medium text-sm hover:bg-blue-600 transition-colors shadow-sm"
+        >
+          <Plus size={18} />
+          new task
+        </button>
+
         {isOver && (
           <div className="mb-3 p-2 bg-blue-100 border border-blue-300 rounded text-center">
             <p className="text-xs font-medium text-[#3b82f6]">drop to unschedule</p>
           </div>
         )}
-        <div className="space-y-2 max-h-[600px] overflow-y-auto">
+        <div className="space-y-2 max-h-[530px] overflow-y-auto">
           {tasks.length === 0 ? (
             <p className="text-xs text-[#94a3b8] text-center py-4">no inbox tasks</p>
           ) : (
@@ -249,8 +261,9 @@ export function CalendarPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [inboxCollapsed, setInboxCollapsed] = useState(false);
-  const [creatingTaskForDate, setCreatingTaskForDate] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
+  const [quickCaptureForDate, setQuickCaptureForDate] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -466,6 +479,54 @@ export function CalendarPage() {
     }
   };
 
+  const handleQuickCapture = async (taskData: {
+    title: string;
+    description: string;
+    category: string;
+    priority: string;
+    client_id?: string;
+  }) => {
+    if (!user) return;
+
+    let status = 'inbox';
+    let due_date = null;
+
+    if (quickCaptureForDate) {
+      const targetDateObj = new Date(quickCaptureForDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayString = today.toISOString().split('T')[0];
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowString = tomorrow.toISOString().split('T')[0];
+
+      due_date = quickCaptureForDate;
+
+      if (quickCaptureForDate === todayString) {
+        status = 'today';
+      } else if (quickCaptureForDate === tomorrowString) {
+        status = 'tomorrow';
+      } else {
+        status = 'this_week';
+      }
+    }
+
+    await supabase.from('tasks').insert([{
+      user_id: user.id,
+      title: taskData.title,
+      description: taskData.description || null,
+      category: taskData.category || null,
+      priority: taskData.priority,
+      status: status,
+      due_date: due_date,
+      client_id: taskData.client_id || null,
+    }]);
+
+    setIsQuickCaptureOpen(false);
+    setQuickCaptureForDate(null);
+    loadData();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -512,6 +573,10 @@ export function CalendarPage() {
               tasks={inboxTasks}
               isOver={overId === 'inbox'}
               onCollapse={() => setInboxCollapsed(true)}
+              onAddTask={() => {
+                setQuickCaptureForDate(null);
+                setIsQuickCaptureOpen(true);
+              }}
             />
           )}
 
@@ -536,7 +601,10 @@ export function CalendarPage() {
                   clients={clients}
                   isOver={overId === `day-${day.dateString}`}
                   onTaskClick={setEditingTask}
-                  onAddTask={() => setCreatingTaskForDate(day.dateString)}
+                  onAddTask={() => {
+                    setQuickCaptureForDate(day.dateString);
+                    setIsQuickCaptureOpen(true);
+                  }}
                 />
               ))}
             </div>
@@ -568,52 +636,14 @@ export function CalendarPage() {
         />
       )}
 
-      {creatingTaskForDate && (
-        <EditTaskModal
-          task={{
-            id: '',
-            user_id: user?.id || '',
-            title: '',
-            description: null,
-            status: 'today',
-            category: null,
-            priority: 'normal',
-            client_id: null,
-            client_name: null,
-            created_at: new Date().toISOString(),
-            completed_at: null,
-            time_block_start: null,
-            time_block_end: null,
-            google_calendar_event_id: null,
-            calendar_sync_status: 'none',
-            is_recurring: false,
-            recurrence_rule: null,
-            parent_task_id: null,
-            is_paused: false,
-            bucket_assignment: null,
-            due_date: creatingTaskForDate,
-          }}
-          clients={clients}
-          onClose={() => setCreatingTaskForDate(null)}
-          onSave={async (taskData) => {
-            if (!user) return;
-
-            const newTask = {
-              ...taskData,
-              user_id: user.id,
-              due_date: creatingTaskForDate,
-              created_at: new Date().toISOString(),
-            };
-
-            const { error } = await supabase.from('tasks').insert([newTask]);
-
-            if (!error) {
-              setCreatingTaskForDate(null);
-              loadData();
-            }
-          }}
-        />
-      )}
+      <QuickCaptureModal
+        isOpen={isQuickCaptureOpen}
+        onClose={() => {
+          setIsQuickCaptureOpen(false);
+          setQuickCaptureForDate(null);
+        }}
+        onSubmit={handleQuickCapture}
+      />
     </DndContext>
   );
 }
