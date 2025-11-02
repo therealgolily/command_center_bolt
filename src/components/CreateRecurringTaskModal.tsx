@@ -19,8 +19,6 @@ export function CreateRecurringTaskModal({ clients, onClose, onCreated }: Create
   const [recurrenceType, setRecurrenceType] = useState('daily');
   const [weekDay, setWeekDay] = useState('monday');
   const [monthDay, setMonthDay] = useState('1');
-  const [bucketAssignment, setBucketAssignment] = useState('today');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [timeBlockStart, setTimeBlockStart] = useState('');
   const [timeBlockEnd, setTimeBlockEnd] = useState('');
   const titleRef = useRef<HTMLInputElement>(null);
@@ -69,7 +67,6 @@ export function CreateRecurringTaskModal({ clients, onClose, onCreated }: Create
       status: 'recurring',
       is_recurring: true,
       recurrence_rule: recurrenceRule,
-      bucket_assignment: bucketAssignment,
       time_block_start: timeBlockStart ? new Date(timeBlockStart).toISOString() : null,
       time_block_end: timeBlockEnd ? new Date(timeBlockEnd).toISOString() : null,
       calendar_sync_status: 'none',
@@ -228,21 +225,6 @@ export function CreateRecurringTaskModal({ clients, onClose, onCreated }: Create
                   <option value="last">Last day of month</option>
                 </select>
               )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-[#1e293b] mb-1">
-                create instances in
-              </label>
-              <select
-                value={bucketAssignment}
-                onChange={(e) => setBucketAssignment(e.target.value)}
-                className="w-full px-3 py-2 border border-[#e2e8f0] rounded-md text-[#1e293b] focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent"
-              >
-                <option value="today">Today</option>
-                <option value="tomorrow">Tomorrow</option>
-                <option value="this_week">This Week</option>
-              </select>
             </div>
 
             <div>

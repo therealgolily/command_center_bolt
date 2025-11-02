@@ -34,83 +34,140 @@ function getOrdinalSuffix(day: number): string {
   }
 }
 
-function shouldCreateInstance(
-  parentTask: Task,
-  lastInstanceDate: Date | null,
-  today: Date
-): boolean {
-  if (!parentTask.recurrence_rule) return false;
+function getNextMonday(fromDate: Date): Date {
+  const date = new Date(fromDate);
+  const day = date.getDay();
+  const daysUntilMonday = day === 0 ? 1 : (8 - day) % 7;
+  if (daysUntilMonday === 0 && day === 1) {
+    return date;
+  }
+  date.setDate(date.getDate() + daysUntilMonday);
+  return date;
+}
 
-  const { type, value } = parseRecurrenceRule(parentTask.recurrence_rule);
+function getNextWeekday(fromDate: Date, targetDay: string): Date {
+  const dayMap: { [key: string]: number } = {
+    'sunday': 0,
+    'monday': 1,
+    'tuesday': 2,
+    'wednesday': 3,
+    'thursday': 4,
+    'friday': 5,
+    'saturday': 6,
+  };
+
+  const targetDayNum = dayMap[targetDay.toLowerCase()];
+  const date = new Date(fromDate);
+  const currentDay = date.getDay();
+
+  if (currentDay === targetDayNum) {
+    return date;
+  }
+
+  const daysUntilTarget = (targetDayNum - currentDay + 7) % 7;
+  date.setDate(date.getDate() + (daysUntilTarget === 0 ? 7 : daysUntilTarget));
+  return date;
+}
+
+function getNextMonthlyDate(fromDate: Date, dayOfMonth: string): Date {
+  const date = new Date(fromDate);
+
+  if (dayOfMonth === 'last') {
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    if (date.getDate() <= lastDay.getDate() && date.getMonth() === lastDay.getMonth()) {
+      lastDay.setFullYear(date.getFullYear());
+      lastDay.setMonth(date.getMonth());
+      return lastDay;
+    } else {
+      const nextMonthLast = new Date(date.getFullYear(), date.getMonth() + 2, 0);
+      return nextMonthLast;
+    }
+  }
+
+  const targetDay = parseInt(dayOfMonth);
+  const currentDay = date.getDate();
+
+  if (currentDay <= targetDay) {
+    const targetDate = new Date(date.getFullYear(), date.getMonth(), targetDay);
+    if (targetDate.getDate() === targetDay) {
+      return targetDate;
+    }
+  }
+
+  const nextMonth = new Date(date.getFullYear(), date.getMonth() + 1, targetDay);
+  if (nextMonth.getDate() === targetDay) {
+    return nextMonth;
+  }
+
+  return new Date(date.getFullYear(), date.getMonth() + 2, 0);
+}
+
+function calculateNextDueDate(recurrenceRule: string, today: Date): Date {
+  const { type, value } = parseRecurrenceRule(recurrenceRule);
 
   switch (type) {
     case 'daily':
-      if (!lastInstanceDate) return true;
-      const daysSinceLastInstance = Math.floor(
-        (today.getTime() - lastInstanceDate.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      return daysSinceLastInstance >= 1;
+      return new Date(today);
 
     case 'weekly':
-      const targetDay = value?.toLowerCase();
-      const todayDay = today.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-
-      if (todayDay !== targetDay) return false;
-
-      if (!lastInstanceDate) return true;
-      const weeksSinceLastInstance = Math.floor(
-        (today.getTime() - lastInstanceDate.getTime()) / (1000 * 60 * 60 * 24 * 7)
-      );
-      return weeksSinceLastInstance >= 1;
+      return getNextWeekday(today, value || 'monday');
 
     case 'monthly':
-      let targetDayOfMonth: number;
-
-      if (value === 'last') {
-        const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-        targetDayOfMonth = lastDayOfMonth;
-      } else {
-        targetDayOfMonth = parseInt(value || '1');
-      }
-
-      if (today.getDate() !== targetDayOfMonth) return false;
-
-      if (!lastInstanceDate) return true;
-      const monthsSinceLastInstance =
-        (today.getFullYear() - lastInstanceDate.getFullYear()) * 12 +
-        (today.getMonth() - lastInstanceDate.getMonth());
-      return monthsSinceLastInstance >= 1;
+      return getNextMonthlyDate(today, value || '1');
 
     default:
-      return false;
+      return new Date(today);
   }
 }
 
-function calculateDueDate(parentTask: Task, today: Date): Date {
-  if (!parentTask.recurrence_rule) return today;
+function calculateStatusFromDueDate(dueDate: Date, today: Date): string {
+  const dueDateOnly = new Date(dueDate);
+  dueDateOnly.setHours(0, 0, 0, 0);
 
-  const { type, value } = parseRecurrenceRule(parentTask.recurrence_rule);
-  const dueDate = new Date(today);
+  const todayOnly = new Date(today);
+  todayOnly.setHours(0, 0, 0, 0);
 
-  switch (type) {
-    case 'daily':
-      return dueDate;
+  const diffInDays = Math.floor((dueDateOnly.getTime() - todayOnly.getTime()) / (1000 * 60 * 60 * 24));
 
-    case 'weekly':
-      return dueDate;
-
-    case 'monthly':
-      if (value === 'last') {
-        const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-        dueDate.setDate(lastDayOfMonth);
-      } else {
-        dueDate.setDate(parseInt(value || '1'));
-      }
-      return dueDate;
-
-    default:
-      return dueDate;
+  if (diffInDays === 0) {
+    return 'today';
+  } else if (diffInDays === 1) {
+    return 'tomorrow';
+  } else if (diffInDays >= 2 && diffInDays <= 7) {
+    return 'this_week';
+  } else if (diffInDays >= 8 && diffInDays <= 14) {
+    return 'next_week';
+  } else {
+    return 'backburner';
   }
+}
+
+function shouldCreateInstance(
+  parentTask: Task,
+  lastInstanceDate: Date | null,
+  nextDueDate: Date,
+  today: Date
+): boolean {
+  const todayOnly = new Date(today);
+  todayOnly.setHours(0, 0, 0, 0);
+
+  const dueDateOnly = new Date(nextDueDate);
+  dueDateOnly.setHours(0, 0, 0, 0);
+
+  const diffInDays = Math.floor((dueDateOnly.getTime() - todayOnly.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffInDays > 14) {
+    return false;
+  }
+
+  if (!lastInstanceDate) {
+    return true;
+  }
+
+  const lastDateOnly = new Date(lastInstanceDate);
+  lastDateOnly.setHours(0, 0, 0, 0);
+
+  return dueDateOnly.getTime() > lastDateOnly.getTime();
 }
 
 function adjustTimeBlockForDate(timeBlock: string, targetDate: Date): string {
@@ -133,7 +190,8 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
       .select('*')
       .eq('user_id', userId)
       .eq('is_recurring', true)
-      .eq('is_paused', false);
+      .eq('is_paused', false)
+      .is('parent_task_id', null);
 
     if (fetchError) {
       errors.push(`Failed to fetch recurring tasks: ${fetchError.message}`);
@@ -149,37 +207,36 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
 
     for (const parentTask of recurringTasks) {
       try {
+        if (!parentTask.recurrence_rule) continue;
+
         const { data: instances } = await supabase
           .from('tasks')
           .select('created_at, due_date')
           .eq('parent_task_id', parentTask.id)
-          .order('created_at', { ascending: false })
+          .order('due_date', { ascending: false })
           .limit(1);
 
         const lastInstance = instances && instances.length > 0 ? instances[0] : null;
-        const lastInstanceDate = lastInstance
-          ? new Date(lastInstance.due_date || lastInstance.created_at)
+        const lastInstanceDate = lastInstance && lastInstance.due_date
+          ? new Date(lastInstance.due_date)
           : null;
 
-        if (lastInstanceDate) {
-          lastInstanceDate.setHours(0, 0, 0, 0);
-        }
+        const nextDueDate = calculateNextDueDate(parentTask.recurrence_rule, today);
+        const dueDateString = nextDueDate.toISOString().split('T')[0];
 
-        if (shouldCreateInstance(parentTask, lastInstanceDate, today)) {
-          const todayString = today.toISOString().split('T')[0];
-
+        if (shouldCreateInstance(parentTask, lastInstanceDate, nextDueDate, today)) {
           const { data: existingInstance } = await supabase
             .from('tasks')
             .select('id')
             .eq('parent_task_id', parentTask.id)
-            .eq('due_date', todayString)
+            .eq('due_date', dueDateString)
             .maybeSingle();
 
           if (existingInstance) {
             continue;
           }
 
-          const dueDate = calculateDueDate(parentTask, today);
+          const status = calculateStatusFromDueDate(nextDueDate, today);
 
           const newInstance: Partial<Task> = {
             user_id: userId,
@@ -188,16 +245,16 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
             category: parentTask.category,
             priority: parentTask.priority,
             client_id: parentTask.client_id,
-            status: parentTask.bucket_assignment || 'today',
+            status: status,
             parent_task_id: parentTask.id,
             is_recurring: false,
-            due_date: dueDate.toISOString().split('T')[0],
+            due_date: dueDateString,
             calendar_sync_status: 'none',
           };
 
           if (parentTask.time_block_start && parentTask.time_block_end) {
-            newInstance.time_block_start = adjustTimeBlockForDate(parentTask.time_block_start, dueDate);
-            newInstance.time_block_end = adjustTimeBlockForDate(parentTask.time_block_end, dueDate);
+            newInstance.time_block_start = adjustTimeBlockForDate(parentTask.time_block_start, nextDueDate);
+            newInstance.time_block_end = adjustTimeBlockForDate(parentTask.time_block_end, nextDueDate);
           }
 
           const { error: insertError } = await supabase
