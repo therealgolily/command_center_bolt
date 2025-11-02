@@ -1,7 +1,7 @@
-import { Inbox, Calendar, CalendarDays, Users, DollarSign, Plus, Settings } from 'lucide-react';
+import { Calendar, CalendarDays, Users, DollarSign, Plus, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-type Page = 'today' | 'planning' | 'calendar' | 'clients' | 'money' | 'settings';
+type Page = 'planning' | 'calendar' | 'clients' | 'money' | 'settings';
 
 type AppLayoutProps = {
   children: React.ReactNode;
@@ -22,19 +22,6 @@ export function AppLayout({ children, currentPage, onNavigate, onQuickCapture }:
 
         <nav className="flex-1 p-4">
           <ul className="space-y-1">
-            <li>
-              <button
-                onClick={() => onNavigate('today')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${
-                  currentPage === 'today'
-                    ? 'bg-[#3b82f6] text-white'
-                    : 'text-[#64748b] hover:bg-gray-100'
-                }`}
-              >
-                <Inbox size={18} />
-                today
-              </button>
-            </li>
             <li>
               <button
                 onClick={() => onNavigate('planning')}

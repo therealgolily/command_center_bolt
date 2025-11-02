@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AuthPage } from './components/AuthPage';
 import { AppLayout } from './components/AppLayout';
-import { TodayPage } from './components/TodayPage';
 import { PlanningPage } from './components/PlanningPage';
 import { CalendarPage } from './components/CalendarPage';
 import { ClientsPage } from './components/ClientsPage';
@@ -12,11 +11,11 @@ import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
 import { supabase } from './lib/supabase';
 
-type Page = 'today' | 'planning' | 'calendar' | 'clients' | 'money' | 'settings';
+type Page = 'planning' | 'calendar' | 'clients' | 'money' | 'settings';
 
 function AppContent() {
   const { user, loading } = useAuth();
-  const [currentPage, setCurrentPage] = useState<Page>('today');
+  const [currentPage, setCurrentPage] = useState<Page>('planning');
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
 
   useKeyboardShortcut('k', () => {
@@ -66,7 +65,6 @@ function AppContent() {
         onNavigate={setCurrentPage}
         onQuickCapture={() => setIsQuickCaptureOpen(true)}
       >
-        {currentPage === 'today' && <TodayPage />}
         {currentPage === 'planning' && <PlanningPage />}
         {currentPage === 'calendar' && <CalendarPage />}
         {currentPage === 'clients' && <ClientsPage />}

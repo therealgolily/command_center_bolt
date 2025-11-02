@@ -18,6 +18,7 @@ import { EditTaskModal } from './EditTaskModal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { RecurringTasksList } from './RecurringTasksList';
 import { CreateRecurringTaskModal } from './CreateRecurringTaskModal';
+import { QuickCaptureModal } from './QuickCaptureModal';
 import { BUCKETS, BucketStatus } from '../lib/buckets';
 import { TaskCard } from './TaskCard';
 import { runRecurringTaskEngine } from '../lib/recurringEngine';
@@ -31,6 +32,7 @@ export function PlanningPage() {
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isCreatingRecurring, setIsCreatingRecurring] = useState(false);
+  const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -157,6 +159,29 @@ export function PlanningPage() {
     }
   };
 
+  const handleQuickCapture = async (taskData: {
+    title: string;
+    description: string;
+    category: string;
+    priority: string;
+    client_id?: string;
+  }) => {
+    if (!user) return;
+
+    await supabase.from('tasks').insert([{
+      user_id: user.id,
+      title: taskData.title,
+      description: taskData.description || null,
+      category: taskData.category || null,
+      priority: taskData.priority,
+      status: 'inbox',
+      client_id: taskData.client_id || null,
+    }]);
+
+    setIsQuickCaptureOpen(false);
+    loadTasks();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -203,11 +228,19 @@ export function PlanningPage() {
                 </span>
               </div>
 
+              <button
+                onClick={() => setIsQuickCaptureOpen(true)}
+                className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-[#3b82f6] text-white font-medium text-sm hover:bg-blue-600 transition-colors shadow-sm"
+              >
+                <Plus size={18} />
+                new task
+              </button>
+
               <SortableContext
                 items={inboxTasks.map((t) => t.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto">
+                <div className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto">
                   {inboxTasks.length === 0 ? (
                     <div className="text-center py-8 text-[#94a3b8] text-sm">
                       no unprocessed tasks
@@ -282,6 +315,12 @@ export function PlanningPage() {
           onCreated={loadTasks}
         />
       )}
+
+      <QuickCaptureModal
+        isOpen={isQuickCaptureOpen}
+        onClose={() => setIsQuickCaptureOpen(false)}
+        onSubmit={handleQuickCapture}
+      />
     </DndContext>
   );
 }
