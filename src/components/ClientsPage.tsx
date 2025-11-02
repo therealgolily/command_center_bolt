@@ -46,7 +46,7 @@ export function ClientsPage() {
   };
 
   const handleAddClient = async (clientData: Partial<Client>) => {
-    if (!user || clients.length >= 4) return;
+    if (!user) return;
 
     const newClient = {
       user_id: user.id,
@@ -114,15 +114,13 @@ export function ClientsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-[#1e293b]">clients</h2>
-        {clients.length < 4 && (
-          <button
-            onClick={() => setIsAddingClient(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#3b82f6] text-white rounded-md text-sm font-medium hover:bg-blue-600 transition-colors"
-          >
-            <Plus size={18} />
-            add client
-          </button>
-        )}
+        <button
+          onClick={() => setIsAddingClient(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-[#3b82f6] text-white rounded-md text-sm font-medium hover:bg-blue-600 transition-colors"
+        >
+          <Plus size={18} />
+          add client
+        </button>
       </div>
 
       {clients.length === 0 ? (
@@ -136,7 +134,7 @@ export function ClientsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {clients.map((client) => (
             <ClientCard
               key={client.id}
@@ -145,24 +143,16 @@ export function ClientsPage() {
               onClick={() => setSelectedClient(client)}
             />
           ))}
-          {clients.length < 4 && (
-            <button
-              onClick={() => setIsAddingClient(true)}
-              className="border-2 border-dashed border-[#e2e8f0] rounded-lg p-8 hover:border-[#3b82f6] hover:bg-blue-50 transition-colors flex items-center justify-center"
-            >
-              <div className="text-center">
-                <Plus size={32} className="text-[#94a3b8] mx-auto mb-2" />
-                <span className="text-[#64748b] text-sm">add another client</span>
-              </div>
-            </button>
-          )}
+          <button
+            onClick={() => setIsAddingClient(true)}
+            className="border-2 border-dashed border-[#e2e8f0] rounded-lg p-8 hover:border-[#3b82f6] hover:bg-blue-50 transition-colors flex items-center justify-center"
+          >
+            <div className="text-center">
+              <Plus size={32} className="text-[#94a3b8] mx-auto mb-2" />
+              <span className="text-[#64748b] text-sm">add another client</span>
+            </div>
+          </button>
         </div>
-      )}
-
-      {clients.length >= 4 && (
-        <p className="text-center text-[#64748b] text-sm">
-          maximum of 4 clients reached
-        </p>
       )}
 
       {selectedClient && (
