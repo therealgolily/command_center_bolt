@@ -4,6 +4,8 @@ import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragOverEvent, P
 import { supabase, Task, Client } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { TaskCard } from './TaskCard';
+import { TaskBadge } from './TaskBadge';
+import { TaskDetailModal } from './TaskDetailModal';
 import { EditTaskModal } from './EditTaskModal';
 import { QuickCaptureModal } from './QuickCaptureModal';
 import { runRecurringTaskEngine } from '../lib/recurringEngine';
@@ -56,19 +58,7 @@ function DraggableCalendarTask({
       }
     : undefined;
 
-  const formatTimeBlock = (start: string, end: string) => {
-    const startTime = new Date(start).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-    const endTime = new Date(end).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-    return `${startTime} - ${endTime}`;
-  };
+  const client = clients.find((c) => c.id === task.client_id);
 
   return (
     <div
@@ -76,33 +66,12 @@ function DraggableCalendarTask({
       style={style}
       {...listeners}
       {...attributes}
-      className="text-xs"
+      onClick={(e) => {
+        e.stopPropagation();
+        onTaskClick(task);
+      }}
     >
-      <div
-        className={`p-2 rounded border ${
-          task.priority === 'urgent'
-            ? 'border-l-2 border-l-[#ef4444] bg-red-50/50'
-            : 'border-[#e2e8f0] bg-gray-50'
-        } hover:shadow-sm transition-shadow cursor-move`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onTaskClick(task);
-        }}
-      >
-        <div className="font-medium text-[#1e293b] mb-1 truncate">
-          {task.title}
-        </div>
-        {task.time_block_start && task.time_block_end && (
-          <div className="text-[10px] text-[#3b82f6] font-medium">
-            {formatTimeBlock(task.time_block_start, task.time_block_end)}
-          </div>
-        )}
-        {task.client_id && (
-          <div className="text-[10px] text-[#64748b] mt-1">
-            {clients.find((c) => c.id === task.client_id)?.name}
-          </div>
-        )}
-      </div>
+      <TaskBadge task={task} client={client} onClick={() => {}} />
     </div>
   );
 }
@@ -259,6 +228,7 @@ export function CalendarPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(getWeekStart(new Date()));
   const [loading, setLoading] = useState(true);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [inboxCollapsed, setInboxCollapsed] = useState(false);
@@ -636,7 +606,7 @@ export function CalendarPage() {
                   tasks={day.tasks}
                   clients={clients}
                   isOver={overId === `day-${day.dateString}`}
-                  onTaskClick={setEditingTask}
+                  onTaskClick={setViewingTask}
                   onAddTask={() => {
                     setQuickCaptureForDate(day.dateString);
                     setIsQuickCaptureOpen(true);
@@ -651,14 +621,34 @@ export function CalendarPage() {
       <DragOverlay>
         {activeTask ? (
           <div className="opacity-80">
-            <TaskCard
+            <TaskBadge
               task={activeTask}
-              onEdit={() => {}}
-              onDelete={() => {}}
+              client={clients.find((c) => c.id === activeTask.client_id)}
+              onClick={() => {}}
             />
           </div>
         ) : null}
       </DragOverlay>
+
+      {viewingTask && (
+        <TaskDetailModal
+          task={viewingTask}
+          client={clients.find((c) => c.id === viewingTask.client_id)}
+          onClose={() => setViewingTask(null)}
+          onEdit={() => {
+            setEditingTask(viewingTask);
+            setViewingTask(null);
+          }}
+          onDelete={() => {
+            handleDeleteTask(viewingTask);
+            setViewingTask(null);
+          }}
+          onComplete={() => {
+            handleUpdateTask(viewingTask.id, { status: 'done' });
+            setViewingTask(null);
+          }}
+        />
+      )}
 
       {editingTask && (
         <EditTaskModal
