@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Repeat } from 'lucide-react';
 import { supabase, Client } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { runRecurringTaskEngine } from '../lib/recurringEngine';
 
 type CreateRecurringTaskModalProps = {
   clients: Client[];
@@ -78,6 +79,15 @@ export function CreateRecurringTaskModal({ clients, onClose, onCreated }: Create
     if (error) {
       console.error('error creating recurring task:', error);
     } else {
+      console.log('Recurring task created, generating instances...');
+
+      const result = await runRecurringTaskEngine(user.id);
+      console.log(`Generated ${result.created} instance(s) for new recurring task`);
+
+      if (result.errors.length > 0) {
+        console.error('Instance generation errors:', result.errors);
+      }
+
       onCreated();
       onClose();
     }
