@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { TaskCard } from './TaskCard';
 import { EditTaskModal } from './EditTaskModal';
 import { QuickCaptureModal } from './QuickCaptureModal';
+import { runRecurringTaskEngine } from '../lib/recurringEngine';
 
 type DayColumn = {
   date: Date;
@@ -264,6 +265,7 @@ export function CalendarPage() {
   const [overId, setOverId] = useState<string | null>(null);
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
   const [quickCaptureForDate, setQuickCaptureForDate] = useState<string | null>(null);
+  const [engineNotification, setEngineNotification] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -275,6 +277,34 @@ export function CalendarPage() {
 
   useEffect(() => {
     loadData();
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      const runEngine = async () => {
+        const lastRun = localStorage.getItem('last_engine_run');
+        const today = new Date().toISOString().split('T')[0];
+
+        if (!lastRun || lastRun !== today) {
+          console.log('Running recurring task engine on Calendar page...');
+          const result = await runRecurringTaskEngine(user.id);
+
+          if (result.created > 0) {
+            setEngineNotification(`Created ${result.created} recurring task instance${result.created !== 1 ? 's' : ''} for this week`);
+            setTimeout(() => setEngineNotification(null), 5000);
+            loadData();
+          }
+
+          if (result.errors.length > 0) {
+            console.error('Recurring engine errors:', result.errors);
+          }
+
+          localStorage.setItem('last_engine_run', today);
+        }
+      };
+
+      runEngine();
+    }
   }, [user]);
 
   const loadData = async () => {
@@ -566,6 +596,12 @@ export function CalendarPage() {
             today
           </button>
         </div>
+
+        {engineNotification && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <p className="text-sm text-purple-800 font-medium">{engineNotification}</p>
+          </div>
+        )}
 
         <div className="flex gap-4">
           {!inboxCollapsed && (

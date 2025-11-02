@@ -33,6 +33,7 @@ export function PlanningPage() {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isCreatingRecurring, setIsCreatingRecurring] = useState(false);
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
+  const [engineNotification, setEngineNotification] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -45,6 +46,34 @@ export function PlanningPage() {
   useEffect(() => {
     loadTasks();
     loadClients();
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      const runEngine = async () => {
+        const lastRun = localStorage.getItem('last_engine_run');
+        const today = new Date().toISOString().split('T')[0];
+
+        if (!lastRun || lastRun !== today) {
+          console.log('Running recurring task engine on Planning page...');
+          const result = await runRecurringTaskEngine(user.id);
+
+          if (result.created > 0) {
+            setEngineNotification(`Created ${result.created} recurring task instance${result.created !== 1 ? 's' : ''} for this week`);
+            setTimeout(() => setEngineNotification(null), 5000);
+            loadTasks();
+          }
+
+          if (result.errors.length > 0) {
+            console.error('Recurring engine errors:', result.errors);
+          }
+
+          localStorage.setItem('last_engine_run', today);
+        }
+      };
+
+      runEngine();
+    }
   }, [user]);
 
   useEffect(() => {
@@ -200,6 +229,12 @@ export function PlanningPage() {
       onDragEnd={handleDragEnd}
     >
       <div className="space-y-6">
+        {engineNotification && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <p className="text-sm text-purple-800 font-medium">{engineNotification}</p>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-[#1e293b]">planning</h2>
           <button
