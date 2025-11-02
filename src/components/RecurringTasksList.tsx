@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Repeat, Pause, Play, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Repeat, Pause, Play, Trash2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { Task, supabase } from '../lib/supabase';
-import { formatRecurrenceRule } from '../lib/recurringEngine';
+import { formatRecurrenceRule, runRecurringTaskEngine } from '../lib/recurringEngine';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useAuth } from '../contexts/AuthContext';
 
 type RecurringTasksListProps = {
   recurringTasks: Task[];
@@ -10,9 +11,12 @@ type RecurringTasksListProps = {
 };
 
 export function RecurringTasksList({ recurringTasks, onUpdate }: RecurringTasksListProps) {
+  const { user } = useAuth();
   const [expanded, setExpanded] = useState(true);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [deleteInstances, setDeleteInstances] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationResult, setGenerationResult] = useState<string | null>(null);
 
   const handleTogglePause = async (task: Task) => {
     const { error } = await supabase
@@ -50,6 +54,36 @@ export function RecurringTasksList({ recurringTasks, onUpdate }: RecurringTasksL
     onUpdate();
   };
 
+  const handleGenerateInstances = async () => {
+    if (!user) return;
+
+    setIsGenerating(true);
+    setGenerationResult(null);
+
+    try {
+      const result = await runRecurringTaskEngine(user.id);
+
+      if (result.created > 0) {
+        setGenerationResult(`Created ${result.created} task instance${result.created !== 1 ? 's' : ''}`);
+        onUpdate();
+      } else {
+        setGenerationResult('No new instances needed');
+      }
+
+      if (result.errors.length > 0) {
+        console.error('Generation errors:', result.errors);
+      }
+
+      setTimeout(() => setGenerationResult(null), 3000);
+    } catch (error) {
+      console.error('Failed to generate instances:', error);
+      setGenerationResult('Failed to generate instances');
+      setTimeout(() => setGenerationResult(null), 3000);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   if (recurringTasks.length === 0) {
     return (
       <div className="bg-white rounded-lg border border-[#e2e8f0] p-6">
@@ -68,17 +102,36 @@ export function RecurringTasksList({ recurringTasks, onUpdate }: RecurringTasksL
 
   return (
     <div className="bg-white rounded-lg border border-[#e2e8f0]">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Repeat size={20} className="text-purple-600" />
-          <h3 className="font-semibold text-[#1e293b]">recurring tasks</h3>
-          <span className="text-sm text-[#64748b]">({recurringTasks.length})</span>
+      <div className="p-4 border-b border-[#e2e8f0]">
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+          >
+            <Repeat size={20} className="text-purple-600" />
+            <h3 className="font-semibold text-[#1e293b]">recurring tasks</h3>
+            <span className="text-sm text-[#64748b]">({recurringTasks.length})</span>
+            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
         </div>
-        {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-      </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleGenerateInstances}
+            disabled={isGenerating}
+            className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw size={14} className={isGenerating ? 'animate-spin' : ''} />
+            {isGenerating ? 'Generating...' : 'Generate instances now'}
+          </button>
+
+          {generationResult && (
+            <span className="text-sm text-purple-600 font-medium">
+              {generationResult}
+            </span>
+          )}
+        </div>
+      </div>
 
       {expanded && (
         <div className="border-t border-[#e2e8f0] divide-y divide-[#e2e8f0]">
@@ -104,8 +157,6 @@ export function RecurringTasksList({ recurringTasks, onUpdate }: RecurringTasksL
                   )}
                   <div className="flex items-center gap-3 text-xs text-[#94a3b8]">
                     <span>{formatRecurrenceRule(task.recurrence_rule || '')}</span>
-                    <span>→</span>
-                    <span className="capitalize">{task.bucket_assignment || 'today'}</span>
                   </div>
                 </div>
 

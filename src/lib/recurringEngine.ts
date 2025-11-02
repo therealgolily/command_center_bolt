@@ -198,6 +198,8 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
       return { created, errors };
     }
 
+    console.log(`Found ${recurringTasks?.length || 0} recurring tasks`);
+
     if (!recurringTasks || recurringTasks.length === 0) {
       return { created, errors };
     }
@@ -207,7 +209,12 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
 
     for (const parentTask of recurringTasks) {
       try {
-        if (!parentTask.recurrence_rule) continue;
+        if (!parentTask.recurrence_rule) {
+          console.log(`Skipping "${parentTask.title}" - no recurrence rule`);
+          continue;
+        }
+
+        console.log(`Processing "${parentTask.title}" with rule: ${parentTask.recurrence_rule}`);
 
         const { data: instances } = await supabase
           .from('tasks')
@@ -221,8 +228,12 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
           ? new Date(lastInstance.due_date)
           : null;
 
+        console.log(`Last instance date: ${lastInstanceDate?.toISOString().split('T')[0] || 'none'}`);
+
         const nextDueDate = calculateNextDueDate(parentTask.recurrence_rule, today);
         const dueDateString = nextDueDate.toISOString().split('T')[0];
+
+        console.log(`Next due date calculated: ${dueDateString}`);
 
         if (shouldCreateInstance(parentTask, lastInstanceDate, nextDueDate, today)) {
           const { data: existingInstance } = await supabase
@@ -233,10 +244,13 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
             .maybeSingle();
 
           if (existingInstance) {
+            console.log(`Instance already exists for ${dueDateString}`);
             continue;
           }
 
           const status = calculateStatusFromDueDate(nextDueDate, today);
+
+          console.log(`Creating instance with status: ${status}`);
 
           const newInstance: Partial<Task> = {
             user_id: userId,
@@ -263,16 +277,22 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
 
           if (insertError) {
             errors.push(`Failed to create instance for "${parentTask.title}": ${insertError.message}`);
+            console.error('Insert error:', insertError);
           } else {
             created++;
+            console.log(`Successfully created instance for "${parentTask.title}"`);
           }
+        } else {
+          console.log(`Should not create instance yet`);
         }
       } catch (err) {
         errors.push(`Error processing "${parentTask.title}": ${err}`);
+        console.error('Processing error:', err);
       }
     }
   } catch (err) {
     errors.push(`Engine error: ${err}`);
+    console.error('Engine error:', err);
   }
 
   return { created, errors };

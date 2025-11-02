@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AuthPage } from './components/AuthPage';
 import { AppLayout } from './components/AppLayout';
@@ -10,6 +10,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
 import { supabase } from './lib/supabase';
+import { runRecurringTaskEngine } from './lib/recurringEngine';
 
 type Page = 'planning' | 'calendar' | 'clients' | 'money' | 'settings';
 
@@ -17,6 +18,27 @@ function AppContent() {
   const { user, loading } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>('planning');
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      const runEngine = async () => {
+        const lastRun = localStorage.getItem('last_engine_run');
+        const today = new Date().toISOString().split('T')[0];
+
+        if (!lastRun || lastRun !== today) {
+          console.log('Running recurring task engine...');
+          const result = await runRecurringTaskEngine(user.id);
+          console.log(`Recurring engine created ${result.created} instances`);
+          if (result.errors.length > 0) {
+            console.error('Recurring engine errors:', result.errors);
+          }
+          localStorage.setItem('last_engine_run', today);
+        }
+      };
+
+      runEngine();
+    }
+  }, [user]);
 
   useKeyboardShortcut('k', () => {
     if (user) {
