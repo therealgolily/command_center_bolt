@@ -4,6 +4,7 @@ import { AuthPage } from './components/AuthPage';
 import { AppLayout } from './components/AppLayout';
 import { TodayPage } from './components/TodayPage';
 import { PlanningPage } from './components/PlanningPage';
+import { CalendarPage } from './components/CalendarPage';
 import { ClientsPage } from './components/ClientsPage';
 import { MoneyPage } from './components/MoneyPage';
 import { SettingsPage } from './components/SettingsPage';
@@ -11,7 +12,7 @@ import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
 import { supabase } from './lib/supabase';
 
-type Page = 'today' | 'planning' | 'clients' | 'money' | 'settings';
+type Page = 'today' | 'planning' | 'calendar' | 'clients' | 'money' | 'settings';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -67,6 +68,7 @@ function AppContent() {
       >
         {currentPage === 'today' && <TodayPage />}
         {currentPage === 'planning' && <PlanningPage />}
+        {currentPage === 'calendar' && <CalendarPage />}
         {currentPage === 'clients' && <ClientsPage />}
         {currentPage === 'money' && <MoneyPage />}
         {currentPage === 'settings' && <SettingsPage />}

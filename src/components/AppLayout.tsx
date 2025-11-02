@@ -1,7 +1,7 @@
-import { Inbox, Calendar, Users, DollarSign, Plus, Settings } from 'lucide-react';
+import { Inbox, Calendar, CalendarDays, Users, DollarSign, Plus, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-type Page = 'today' | 'planning' | 'clients' | 'money' | 'settings';
+type Page = 'today' | 'planning' | 'calendar' | 'clients' | 'money' | 'settings';
 
 type AppLayoutProps = {
   children: React.ReactNode;
@@ -46,6 +46,19 @@ export function AppLayout({ children, currentPage, onNavigate, onQuickCapture }:
               >
                 <Calendar size={18} />
                 planning
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => onNavigate('calendar')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${
+                  currentPage === 'calendar'
+                    ? 'bg-[#3b82f6] text-white'
+                    : 'text-[#64748b] hover:bg-gray-100'
+                }`}
+              >
+                <CalendarDays size={18} />
+                calendar
               </button>
             </li>
             <li>
