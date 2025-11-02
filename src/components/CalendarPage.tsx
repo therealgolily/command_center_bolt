@@ -5,6 +5,7 @@ import { supabase, Task, Client } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { TaskCard } from './TaskCard';
 import { TaskBadge } from './TaskBadge';
+import { CompactTaskCard } from './CompactTaskCard';
 import { TaskDetailModal } from './TaskDetailModal';
 import { EditTaskModal } from './EditTaskModal';
 import { QuickCaptureModal } from './QuickCaptureModal';
@@ -613,6 +614,106 @@ export function CalendarPage() {
                   }}
                 />
               ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 pt-8 border-t border-[#e2e8f0]">
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-[#1e293b]">today</h3>
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                  {tasks.filter((t) => {
+                    const today = new Date().toISOString().split('T')[0];
+                    return (t.status === 'today' || t.due_date === today) && t.status !== 'done';
+                  }).length}
+                </span>
+              </div>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {tasks.filter((t) => {
+                  const today = new Date().toISOString().split('T')[0];
+                  return (t.status === 'today' || t.due_date === today) && t.status !== 'done';
+                }).length === 0 ? (
+                  <div className="text-center py-8 text-sm text-[#94a3b8]">
+                    nothing scheduled for today
+                  </div>
+                ) : (
+                  tasks
+                    .filter((t) => {
+                      const today = new Date().toISOString().split('T')[0];
+                      return (t.status === 'today' || t.due_date === today) && t.status !== 'done';
+                    })
+                    .sort((a, b) => {
+                      if (a.time_block_start && b.time_block_start) {
+                        return new Date(a.time_block_start).getTime() - new Date(b.time_block_start).getTime();
+                      }
+                      if (a.time_block_start) return -1;
+                      if (b.time_block_start) return 1;
+                      return 0;
+                    })
+                    .map((task) => (
+                      <CompactTaskCard
+                        key={task.id}
+                        task={task}
+                        client={clients.find((c) => c.id === task.client_id)}
+                        onComplete={() => handleUpdateTask(task.id, { status: 'done' })}
+                        onClick={() => setViewingTask(task)}
+                      />
+                    ))
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-[#1e293b]">tomorrow</h3>
+                <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                  {tasks.filter((t) => {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    const tomorrowString = tomorrow.toISOString().split('T')[0];
+                    return (t.status === 'tomorrow' || t.due_date === tomorrowString) && t.status !== 'done';
+                  }).length}
+                </span>
+              </div>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {tasks.filter((t) => {
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  const tomorrowString = tomorrow.toISOString().split('T')[0];
+                  return (t.status === 'tomorrow' || t.due_date === tomorrowString) && t.status !== 'done';
+                }).length === 0 ? (
+                  <div className="text-center py-8 text-sm text-[#94a3b8]">
+                    nothing scheduled for tomorrow
+                  </div>
+                ) : (
+                  tasks
+                    .filter((t) => {
+                      const tomorrow = new Date();
+                      tomorrow.setDate(tomorrow.getDate() + 1);
+                      const tomorrowString = tomorrow.toISOString().split('T')[0];
+                      return (t.status === 'tomorrow' || t.due_date === tomorrowString) && t.status !== 'done';
+                    })
+                    .sort((a, b) => {
+                      if (a.time_block_start && b.time_block_start) {
+                        return new Date(a.time_block_start).getTime() - new Date(b.time_block_start).getTime();
+                      }
+                      if (a.time_block_start) return -1;
+                      if (b.time_block_start) return 1;
+                      return 0;
+                    })
+                    .map((task) => (
+                      <CompactTaskCard
+                        key={task.id}
+                        task={task}
+                        client={clients.find((c) => c.id === task.client_id)}
+                        onComplete={() => handleUpdateTask(task.id, { status: 'done' })}
+                        onClick={() => setViewingTask(task)}
+                      />
+                    ))
+                )}
+              </div>
             </div>
           </div>
         </div>
