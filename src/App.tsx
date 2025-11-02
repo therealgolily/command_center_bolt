@@ -28,7 +28,7 @@ function AppContent() {
 
   useKeyboardShortcut('?', () => {
     if (user) {
-      setShowShortcuts(true);
+      setShowShortcuts(prev => !prev);
     }
   });
 
