@@ -34,6 +34,126 @@ function DraggableInboxTask({ task }: { task: Task }) {
   );
 }
 
+function DraggableCalendarTask({
+  task,
+  clients,
+  onTaskClick
+}: {
+  task: Task;
+  clients: Client[];
+  onTaskClick: (task: Task) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+  });
+
+  const style = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        opacity: isDragging ? 0.5 : 1,
+      }
+    : undefined;
+
+  const formatTimeBlock = (start: string, end: string) => {
+    const startTime = new Date(start).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    const endTime = new Date(end).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return `${startTime} - ${endTime}`;
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className="text-xs"
+    >
+      <div
+        className={`p-2 rounded border ${
+          task.priority === 'urgent'
+            ? 'border-l-2 border-l-[#ef4444] bg-red-50/50'
+            : 'border-[#e2e8f0] bg-gray-50'
+        } hover:shadow-sm transition-shadow cursor-move`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTaskClick(task);
+        }}
+      >
+        <div className="font-medium text-[#1e293b] mb-1 truncate">
+          {task.title}
+        </div>
+        {task.time_block_start && task.time_block_end && (
+          <div className="text-[10px] text-[#3b82f6] font-medium">
+            {formatTimeBlock(task.time_block_start, task.time_block_end)}
+          </div>
+        )}
+        {task.client_id && (
+          <div className="text-[10px] text-[#64748b] mt-1">
+            {clients.find((c) => c.id === task.client_id)?.name}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DroppableInbox({
+  tasks,
+  isOver,
+  onCollapse,
+}: {
+  tasks: Task[];
+  isOver: boolean;
+  onCollapse: () => void;
+}) {
+  const { setNodeRef } = useDroppable({
+    id: 'inbox',
+  });
+
+  return (
+    <div className="w-64 flex-shrink-0">
+      <div
+        ref={setNodeRef}
+        className={`bg-white rounded-lg border-2 p-4 sticky top-4 transition-all ${
+          isOver ? 'border-[#3b82f6] bg-blue-50 shadow-lg' : 'border-[#e2e8f0]'
+        }`}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-[#1e293b] text-sm uppercase tracking-wide">
+            inbox
+          </h3>
+          <button
+            onClick={onCollapse}
+            className="text-xs text-[#64748b] hover:text-[#1e293b]"
+          >
+            hide
+          </button>
+        </div>
+        {isOver && (
+          <div className="mb-3 p-2 bg-blue-100 border border-blue-300 rounded text-center">
+            <p className="text-xs font-medium text-[#3b82f6]">drop to unschedule</p>
+          </div>
+        )}
+        <div className="space-y-2 max-h-[600px] overflow-y-auto">
+          {tasks.length === 0 ? (
+            <p className="text-xs text-[#94a3b8] text-center py-4">no inbox tasks</p>
+          ) : (
+            tasks.map((task) => <DraggableInboxTask key={task.id} task={task} />)
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DroppableDayColumn({
   day,
   tasks,
@@ -52,20 +172,6 @@ function DroppableDayColumn({
   const { setNodeRef } = useDroppable({
     id: `day-${day.dateString}`,
   });
-
-  const formatTimeBlock = (start: string, end: string) => {
-    const startTime = new Date(start).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-    const endTime = new Date(end).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-    return `${startTime} - ${endTime}`;
-  };
 
   return (
     <div
@@ -111,30 +217,12 @@ function DroppableDayColumn({
           </div>
         ) : (
           tasks.map((task) => (
-            <div key={task.id} className="text-xs">
-              <div
-                className={`p-2 rounded border ${
-                  task.priority === 'urgent'
-                    ? 'border-l-2 border-l-[#ef4444] bg-red-50/50'
-                    : 'border-[#e2e8f0] bg-gray-50'
-                } hover:shadow-sm transition-shadow cursor-pointer`}
-                onClick={() => onTaskClick(task)}
-              >
-                <div className="font-medium text-[#1e293b] mb-1 truncate">
-                  {task.title}
-                </div>
-                {task.time_block_start && task.time_block_end && (
-                  <div className="text-[10px] text-[#3b82f6] font-medium">
-                    {formatTimeBlock(task.time_block_start, task.time_block_end)}
-                  </div>
-                )}
-                {task.client_id && (
-                  <div className="text-[10px] text-[#64748b] mt-1">
-                    {clients.find((c) => c.id === task.client_id)?.name}
-                  </div>
-                )}
-              </div>
-            </div>
+            <DraggableCalendarTask
+              key={task.id}
+              task={task}
+              clients={clients}
+              onTaskClick={onTaskClick}
+            />
           ))
         )}
       </div>
@@ -290,10 +378,29 @@ export function CalendarPage() {
     if (!over) return;
 
     const taskId = active.id as string;
-    const targetDate = over.id as string;
+    const targetId = over.id as string;
 
-    if (targetDate.startsWith('day-')) {
-      const dateString = targetDate.replace('day-', '');
+    if (targetId === 'inbox') {
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) return;
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId ? { ...t, due_date: null, status: 'inbox' } : t
+        )
+      );
+
+      const { error } = await supabase
+        .from('tasks')
+        .update({ due_date: null, status: 'inbox' })
+        .eq('id', taskId);
+
+      if (error) {
+        console.error('error updating task:', error);
+        loadData();
+      }
+    } else if (targetId.startsWith('day-')) {
+      const dateString = targetId.replace('day-', '');
       const task = tasks.find((t) => t.id === taskId);
 
       if (!task) return;
@@ -401,30 +508,11 @@ export function CalendarPage() {
 
         <div className="flex gap-4">
           {!inboxCollapsed && (
-            <div className="w-64 flex-shrink-0">
-              <div className="bg-white rounded-lg border border-[#e2e8f0] p-4 sticky top-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-[#1e293b] text-sm uppercase tracking-wide">
-                    inbox
-                  </h3>
-                  <button
-                    onClick={() => setInboxCollapsed(true)}
-                    className="text-xs text-[#64748b] hover:text-[#1e293b]"
-                  >
-                    hide
-                  </button>
-                </div>
-                <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                  {inboxTasks.length === 0 ? (
-                    <p className="text-xs text-[#94a3b8] text-center py-4">no inbox tasks</p>
-                  ) : (
-                    inboxTasks.map((task) => (
-                      <DraggableInboxTask key={task.id} task={task} />
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
+            <DroppableInbox
+              tasks={inboxTasks}
+              isOver={overId === 'inbox'}
+              onCollapse={() => setInboxCollapsed(true)}
+            />
           )}
 
           {inboxCollapsed && (
