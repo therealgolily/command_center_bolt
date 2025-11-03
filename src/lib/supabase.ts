@@ -50,6 +50,8 @@ export type Income = {
   amount: number;
   date: string;
   notes: string | null;
+  attachment_url: string | null;
+  attachment_name: string | null;
   created_at: string;
 };
 
@@ -61,6 +63,8 @@ export type Expense = {
   date: string;
   category: string | null;
   description: string | null;
+  attachment_url: string | null;
+  attachment_name: string | null;
   created_at: string;
 };
 

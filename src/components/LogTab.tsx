@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Trash2, Edit2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Trash2, Edit2, TrendingUp, TrendingDown, Paperclip, Upload, X } from 'lucide-react';
 import { supabase, Income, Expense, Client } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ConfirmDialog } from './ConfirmDialog';
+import { uploadAttachment, deleteAttachment } from '../lib/fileUpload';
 
 type LogTabProps = {
   income: Income[];
@@ -18,6 +19,8 @@ type Transaction = {
   amount: number;
   date: string;
   description: string | null;
+  attachment_url?: string | null;
+  attachment_name?: string | null;
 };
 
 function formatCurrency(amount: number) {
@@ -38,12 +41,16 @@ export function LogTab({ income, expenses, clients, onDataChange }: LogTabProps)
   const [incomeAmount, setIncomeAmount] = useState('');
   const [incomeDate, setIncomeDate] = useState(new Date().toISOString().split('T')[0]);
   const [incomeNotes, setIncomeNotes] = useState('');
+  const [incomeFile, setIncomeFile] = useState<File | null>(null);
+  const [incomeUploading, setIncomeUploading] = useState(false);
 
   const [expenseClientId, setExpenseClientId] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
   const [expenseCategory, setExpenseCategory] = useState('');
   const [expenseDescription, setExpenseDescription] = useState('');
+  const [expenseFile, setExpenseFile] = useState<File | null>(null);
+  const [expenseUploading, setExpenseUploading] = useState(false);
 
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
 
@@ -51,22 +58,45 @@ export function LogTab({ income, expenses, clients, onDataChange }: LogTabProps)
     e.preventDefault();
     if (!user || !incomeClientId || !incomeAmount) return;
 
-    const { error } = await supabase.from('income').insert([{
-      user_id: user.id,
-      client_id: incomeClientId,
-      amount: parseFloat(incomeAmount),
-      date: incomeDate,
-      notes: incomeNotes || null,
-    }]);
+    try {
+      setIncomeUploading(true);
+      let attachmentUrl = null;
+      let attachmentName = null;
 
-    if (error) {
-      console.error('error logging income:', error);
-    } else {
-      setIncomeClientId('');
-      setIncomeAmount('');
-      setIncomeDate(new Date().toISOString().split('T')[0]);
-      setIncomeNotes('');
-      onDataChange();
+      if (incomeFile) {
+        const result = await uploadAttachment(incomeFile, user.id, 'income');
+        attachmentUrl = result.url;
+        attachmentName = result.name;
+      }
+
+      const { error } = await supabase.from('income').insert([{
+        user_id: user.id,
+        client_id: incomeClientId,
+        amount: parseFloat(incomeAmount),
+        date: incomeDate,
+        notes: incomeNotes || null,
+        attachment_url: attachmentUrl,
+        attachment_name: attachmentName,
+      }]);
+
+      if (error) {
+        console.error('error logging income:', error);
+        if (attachmentUrl) {
+          await deleteAttachment(attachmentUrl);
+        }
+      } else {
+        setIncomeClientId('');
+        setIncomeAmount('');
+        setIncomeDate(new Date().toISOString().split('T')[0]);
+        setIncomeNotes('');
+        setIncomeFile(null);
+        onDataChange();
+      }
+    } catch (error) {
+      console.error('error uploading file:', error);
+      alert(error instanceof Error ? error.message : 'Failed to upload file');
+    } finally {
+      setIncomeUploading(false);
     }
   };
 
@@ -74,29 +104,61 @@ export function LogTab({ income, expenses, clients, onDataChange }: LogTabProps)
     e.preventDefault();
     if (!user || !expenseAmount) return;
 
-    const { error } = await supabase.from('expenses').insert([{
-      user_id: user.id,
-      client_id: expenseClientId || null,
-      amount: parseFloat(expenseAmount),
-      date: expenseDate,
-      category: expenseCategory || null,
-      description: expenseDescription || null,
-    }]);
+    try {
+      setExpenseUploading(true);
+      let attachmentUrl = null;
+      let attachmentName = null;
 
-    if (error) {
-      console.error('error logging expense:', error);
-    } else {
-      setExpenseClientId('');
-      setExpenseAmount('');
-      setExpenseDate(new Date().toISOString().split('T')[0]);
-      setExpenseCategory('');
-      setExpenseDescription('');
-      onDataChange();
+      if (expenseFile) {
+        const result = await uploadAttachment(expenseFile, user.id, 'expenses');
+        attachmentUrl = result.url;
+        attachmentName = result.name;
+      }
+
+      const { error } = await supabase.from('expenses').insert([{
+        user_id: user.id,
+        client_id: expenseClientId || null,
+        amount: parseFloat(expenseAmount),
+        date: expenseDate,
+        category: expenseCategory || null,
+        description: expenseDescription || null,
+        attachment_url: attachmentUrl,
+        attachment_name: attachmentName,
+      }]);
+
+      if (error) {
+        console.error('error logging expense:', error);
+        if (attachmentUrl) {
+          await deleteAttachment(attachmentUrl);
+        }
+      } else {
+        setExpenseClientId('');
+        setExpenseAmount('');
+        setExpenseDate(new Date().toISOString().split('T')[0]);
+        setExpenseCategory('');
+        setExpenseDescription('');
+        setExpenseFile(null);
+        onDataChange();
+      }
+    } catch (error) {
+      console.error('error uploading file:', error);
+      alert(error instanceof Error ? error.message : 'Failed to upload file');
+    } finally {
+      setExpenseUploading(false);
     }
   };
 
   const handleDeleteTransaction = async (transaction: Transaction) => {
     const table = transaction.type === 'income' ? 'income' : 'expenses';
+
+    const record = transaction.type === 'income'
+      ? income.find((i) => i.id === transaction.id)
+      : expenses.find((e) => e.id === transaction.id);
+
+    if (record?.attachment_url) {
+      await deleteAttachment(record.attachment_url);
+    }
+
     const { error } = await supabase.from(table).delete().eq('id', transaction.id);
 
     if (error) {
@@ -115,6 +177,8 @@ export function LogTab({ income, expenses, clients, onDataChange }: LogTabProps)
       amount: i.amount,
       date: i.date,
       description: i.notes,
+      attachment_url: i.attachment_url,
+      attachment_name: i.attachment_name,
     })),
     ...expenses.map((e) => ({
       id: e.id,
@@ -123,6 +187,8 @@ export function LogTab({ income, expenses, clients, onDataChange }: LogTabProps)
       amount: e.amount,
       date: e.date,
       description: e.description,
+      attachment_url: e.attachment_url,
+      attachment_name: e.attachment_name,
     })),
   ]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -204,12 +270,43 @@ export function LogTab({ income, expenses, clients, onDataChange }: LogTabProps)
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-[#1e293b] mb-1">
+              attach invoice/receipt
+            </label>
+            {incomeFile ? (
+              <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-md border border-[#e2e8f0]">
+                <Paperclip size={16} className="text-[#64748b]" />
+                <span className="text-sm text-[#1e293b] flex-1 truncate">{incomeFile.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setIncomeFile(null)}
+                  className="p-1 text-[#64748b] hover:text-[#ef4444] transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-[#e2e8f0] rounded-md cursor-pointer hover:border-[#3b82f6] hover:bg-blue-50 transition-colors">
+                <Upload size={16} className="text-[#64748b]" />
+                <span className="text-sm text-[#64748b]">upload file</span>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx"
+                  onChange={(e) => setIncomeFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+              </label>
+            )}
+            <p className="text-xs text-[#94a3b8] mt-1">PDF, JPG, PNG, XLSX, DOCX (max 10MB)</p>
+          </div>
+
           <button
             type="submit"
-            disabled={!incomeClientId || !incomeAmount}
+            disabled={!incomeClientId || !incomeAmount || incomeUploading}
             className="w-full px-4 py-2 bg-[#22c55e] text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            log income
+            {incomeUploading ? 'uploading...' : 'log income'}
           </button>
         </form>
 
@@ -297,12 +394,43 @@ export function LogTab({ income, expenses, clients, onDataChange }: LogTabProps)
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-[#1e293b] mb-1">
+              attach receipt
+            </label>
+            {expenseFile ? (
+              <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-md border border-[#e2e8f0]">
+                <Paperclip size={16} className="text-[#64748b]" />
+                <span className="text-sm text-[#1e293b] flex-1 truncate">{expenseFile.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setExpenseFile(null)}
+                  className="p-1 text-[#64748b] hover:text-[#ef4444] transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-[#e2e8f0] rounded-md cursor-pointer hover:border-[#3b82f6] hover:bg-blue-50 transition-colors">
+                <Upload size={16} className="text-[#64748b]" />
+                <span className="text-sm text-[#64748b]">upload file</span>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx"
+                  onChange={(e) => setExpenseFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+              </label>
+            )}
+            <p className="text-xs text-[#94a3b8] mt-1">PDF, JPG, PNG, XLSX, DOCX (max 10MB)</p>
+          </div>
+
           <button
             type="submit"
-            disabled={!expenseAmount}
+            disabled={!expenseAmount || expenseUploading}
             className="w-full px-4 py-2 bg-[#ef4444] text-white rounded-md text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            log expense
+            {expenseUploading ? 'uploading...' : 'log expense'}
           </button>
         </form>
       </div>
@@ -334,7 +462,21 @@ export function LogTab({ income, expenses, clients, onDataChange }: LogTabProps)
                 </span>
 
                 <div className="flex-1">
-                  <div className="font-medium text-[#1e293b]">{getClientName(transaction.client_id)}</div>
+                  <div className="font-medium text-[#1e293b] flex items-center gap-2">
+                    {getClientName(transaction.client_id)}
+                    {transaction.attachment_url && (
+                      <a
+                        href={transaction.attachment_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#3b82f6] hover:text-blue-600 transition-colors"
+                        title={transaction.attachment_name || 'View attachment'}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Paperclip size={14} />
+                      </a>
+                    )}
+                  </div>
                   {transaction.description && (
                     <div className="text-sm text-[#64748b]">{transaction.description}</div>
                   )}
