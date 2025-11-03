@@ -143,9 +143,7 @@ export function PlanningPage() {
     }
 
     const taskId = active.id as string;
-    const newStatus = over.id as BucketStatus;
-
-    console.log('drag end:', { taskId, from: tasks.find((t) => t.id === taskId)?.status, to: newStatus });
+    const overId = over.id as string;
 
     const task = tasks.find((t) => t.id === taskId);
     if (!task) {
@@ -153,8 +151,18 @@ export function PlanningPage() {
       return;
     }
 
+    const overTask = tasks.find((t) => t.id === overId);
+
+    if (overTask) {
+      console.log('reordering within same bucket - no action needed, sortable handles it');
+      return;
+    }
+
+    const newStatus = overId as BucketStatus;
+    console.log('drag end:', { taskId, from: task.status, to: newStatus });
+
     if (task.status === newStatus) {
-      console.log('task already in this status, no update needed');
+      console.log('dropped on same bucket, no status change needed');
       return;
     }
 
