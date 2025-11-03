@@ -137,7 +137,10 @@ export function PlanningPage() {
     const { active, over } = event;
     setActiveTask(null);
 
-    if (!over) return;
+    if (!over) {
+      console.log('no valid drop zone - task stays in original position');
+      return;
+    }
 
     const taskId = active.id as string;
     const newStatus = over.id as BucketStatus;
@@ -145,17 +148,22 @@ export function PlanningPage() {
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.status === newStatus) return;
 
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
-    );
+    try {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+      );
 
-    const { error } = await supabase
-      .from('tasks')
-      .update({ status: newStatus })
-      .eq('id', taskId);
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status: newStatus })
+        .eq('id', taskId);
 
-    if (error) {
-      console.error('error updating task:', error);
+      if (error) {
+        console.error('error updating task:', error);
+        loadTasks();
+      }
+    } catch (error) {
+      console.error('drop failed:', error);
       loadTasks();
     }
   };

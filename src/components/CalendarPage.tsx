@@ -389,31 +389,35 @@ export function CalendarPage() {
     setActiveTask(null);
     setOverId(null);
 
-    if (!over) return;
+    if (!over) {
+      console.log('no valid drop zone - task stays in original position');
+      return;
+    }
 
     const taskId = active.id as string;
     const targetId = over.id as string;
 
-    if (targetId === 'inbox') {
-      const task = tasks.find((t) => t.id === taskId);
-      if (!task) return;
+    try {
+      if (targetId === 'inbox') {
+        const task = tasks.find((t) => t.id === taskId);
+        if (!task) return;
 
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, due_date: null, status: 'inbox' } : t
-        )
-      );
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId ? { ...t, due_date: null, status: 'inbox' } : t
+          )
+        );
 
-      const { error } = await supabase
-        .from('tasks')
-        .update({ due_date: null, status: 'inbox' })
-        .eq('id', taskId);
+        const { error } = await supabase
+          .from('tasks')
+          .update({ due_date: null, status: 'inbox' })
+          .eq('id', taskId);
 
-      if (error) {
-        console.error('error updating task:', error);
-        loadData();
-      }
-    } else if (targetId.startsWith('day-')) {
+        if (error) {
+          console.error('error updating task:', error);
+          loadData();
+        }
+      } else if (targetId.startsWith('day-')) {
       const dateString = targetId.replace('day-', '');
       const task = tasks.find((t) => t.id === taskId);
 
@@ -457,6 +461,10 @@ export function CalendarPage() {
         console.error('error updating task:', error);
         loadData();
       }
+    }
+    } catch (error) {
+      console.error('drop failed:', error);
+      loadData();
     }
   };
 
