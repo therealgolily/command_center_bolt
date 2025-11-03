@@ -145,14 +145,20 @@ export function PlanningPage() {
     const taskId = active.id as string;
     const newStatus = over.id as BucketStatus;
 
+    console.log('drag end:', { taskId, from: tasks.find((t) => t.id === taskId)?.status, to: newStatus });
+
     const task = tasks.find((t) => t.id === taskId);
-    if (!task || task.status === newStatus) return;
+    if (!task) {
+      console.error('task not found:', taskId);
+      return;
+    }
+
+    if (task.status === newStatus) {
+      console.log('task already in this status, no update needed');
+      return;
+    }
 
     try {
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
-      );
-
       const { error } = await supabase
         .from('tasks')
         .update({ status: newStatus })
@@ -161,6 +167,11 @@ export function PlanningPage() {
       if (error) {
         console.error('error updating task:', error);
         loadTasks();
+      } else {
+        console.log('task updated successfully');
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+        );
       }
     } catch (error) {
       console.error('drop failed:', error);
