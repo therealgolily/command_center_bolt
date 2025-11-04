@@ -121,63 +121,77 @@ export function NotesPage() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
 
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
+    const validFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith('image/')) {
+        alert(`${file.name} is not an image file`);
+        continue;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`${file.name} exceeds 10MB limit`);
+        continue;
+      }
+      validFiles.push(file);
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      alert('Image size must be less than 10MB');
-      return;
-    }
+    if (validFiles.length === 0) return;
 
     try {
       setUploadingImage(true);
 
-      const timestamp = Date.now();
-      const fileName = `${user.id}/notes/${timestamp}-${file.name}`;
-
-      const { data, error } = await supabase.storage
-        .from('attachments')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (error) throw error;
-
-      const { data: urlData } = supabase.storage
-        .from('attachments')
-        .getPublicUrl(fileName);
-
-      const img = document.createElement('img');
-      img.src = urlData.publicUrl;
-      img.style.maxWidth = '100%';
-      img.style.height = 'auto';
-      img.style.margin = '10px 0';
-      img.style.borderRadius = '4px';
-
       const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        range.insertNode(img);
+      let insertionPoint: Range | null = null;
 
-        range.setStartAfter(img);
-        range.setEndAfter(img);
+      if (selection && selection.rangeCount > 0) {
+        insertionPoint = selection.getRangeAt(0);
+      }
+
+      for (const file of validFiles) {
+        const timestamp = Date.now() + Math.random();
+        const fileName = `${user.id}/notes/${timestamp}-${file.name}`;
+
+        const { data, error } = await supabase.storage
+          .from('attachments')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (error) throw error;
+
+        const { data: urlData } = supabase.storage
+          .from('attachments')
+          .getPublicUrl(fileName);
+
+        const img = document.createElement('img');
+        img.src = urlData.publicUrl;
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        img.style.margin = '10px 0';
+        img.style.borderRadius = '4px';
+
+        if (insertionPoint) {
+          insertionPoint.insertNode(img);
+          insertionPoint.setStartAfter(img);
+          insertionPoint.setEndAfter(img);
+        } else if (editorRef.current) {
+          editorRef.current.appendChild(img);
+        }
+      }
+
+      if (selection && insertionPoint) {
         selection.removeAllRanges();
-        selection.addRange(range);
-      } else if (editorRef.current) {
-        editorRef.current.appendChild(img);
+        selection.addRange(insertionPoint);
       }
 
       editorRef.current?.focus();
     } catch (error) {
-      console.error('error uploading image:', error);
-      alert('Failed to upload image');
+      console.error('error uploading images:', error);
+      alert('Failed to upload images');
     } finally {
       setUploadingImage(false);
       if (imageInputRef.current) {
@@ -328,6 +342,7 @@ export function NotesPage() {
             ref={imageInputRef}
             type="file"
             accept="image/*"
+            multiple
             onChange={handleImageUpload}
             className="hidden"
           />
