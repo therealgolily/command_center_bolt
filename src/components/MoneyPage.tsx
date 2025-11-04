@@ -3,10 +3,11 @@ import { supabase, Income, Expense, Client } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { LogTab } from './LogTab';
 import { ReportsTab } from './ReportsTab';
+import { PersonalFinancesTab } from './PersonalFinancesTab';
 
 export function MoneyPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'log' | 'reports'>('log');
+  const [activeTab, setActiveTab] = useState<'log' | 'reports' | 'personal'>('log');
   const [income, setIncome] = useState<Income[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -80,6 +81,16 @@ export function MoneyPage() {
           >
             reports
           </button>
+          <button
+            onClick={() => setActiveTab('personal')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'personal'
+                ? 'border-[#3b82f6] text-[#3b82f6]'
+                : 'border-transparent text-[#64748b] hover:text-[#1e293b]'
+            }`}
+          >
+            personal
+          </button>
         </div>
       </div>
 
@@ -99,6 +110,8 @@ export function MoneyPage() {
           clients={clients}
         />
       )}
+
+      {activeTab === 'personal' && <PersonalFinancesTab />}
     </div>
   );
 }

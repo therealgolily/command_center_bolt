@@ -87,3 +87,24 @@ export type Note = {
   created_at: string;
   updated_at: string;
 };
+
+export type CreditCard = {
+  id: string;
+  user_id: string;
+  name: string;
+  last_four: string | null;
+  balance: number;
+  credit_limit: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssetAccount = {
+  id: string;
+  user_id: string;
+  name: string;
+  account_type: 'checking' | 'savings' | 'investment';
+  balance: number;
+  created_at: string;
+  updated_at: string;
+};
