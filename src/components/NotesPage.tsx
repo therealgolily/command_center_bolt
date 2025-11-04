@@ -169,19 +169,71 @@ export function NotesPage() {
           .from('attachments')
           .getPublicUrl(fileName);
 
+        const container = document.createElement('div');
+        container.contentEditable = 'false';
+        container.style.position = 'relative';
+        container.style.display = 'inline-block';
+        container.style.margin = '10px 0';
+        container.style.maxWidth = '100%';
+        container.setAttribute('data-attachment-url', urlData.publicUrl);
+        container.setAttribute('data-storage-path', fileName);
+
         const img = document.createElement('img');
         img.src = urlData.publicUrl;
         img.style.maxWidth = '100%';
         img.style.height = 'auto';
-        img.style.margin = '10px 0';
         img.style.borderRadius = '4px';
+        img.style.display = 'block';
+        img.style.pointerEvents = 'none';
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.innerHTML = '✕';
+        deleteBtn.style.position = 'absolute';
+        deleteBtn.style.top = '8px';
+        deleteBtn.style.right = '8px';
+        deleteBtn.style.width = '28px';
+        deleteBtn.style.height = '28px';
+        deleteBtn.style.borderRadius = '50%';
+        deleteBtn.style.backgroundColor = 'rgba(239, 68, 68, 0.95)';
+        deleteBtn.style.color = 'white';
+        deleteBtn.style.border = 'none';
+        deleteBtn.style.cursor = 'pointer';
+        deleteBtn.style.fontSize = '16px';
+        deleteBtn.style.display = 'flex';
+        deleteBtn.style.alignItems = 'center';
+        deleteBtn.style.justifyContent = 'center';
+        deleteBtn.style.opacity = '0';
+        deleteBtn.style.transition = 'opacity 0.2s, background-color 0.2s';
+        deleteBtn.style.fontWeight = 'bold';
+        deleteBtn.title = 'Delete image';
+        deleteBtn.onmouseover = () => { deleteBtn.style.backgroundColor = 'rgba(220, 38, 38, 0.95)'; };
+        deleteBtn.onmouseout = () => { deleteBtn.style.backgroundColor = 'rgba(239, 68, 68, 0.95)'; };
+        deleteBtn.onclick = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (confirm('Delete this image?')) {
+            try {
+              await supabase.storage.from('attachments').remove([fileName]);
+              container.remove();
+            } catch (error) {
+              console.error('Error deleting image:', error);
+              alert('Failed to delete image');
+            }
+          }
+        };
+
+        container.onmouseover = () => { deleteBtn.style.opacity = '1'; };
+        container.onmouseout = () => { deleteBtn.style.opacity = '0'; };
+
+        container.appendChild(img);
+        container.appendChild(deleteBtn);
 
         if (insertionPoint) {
-          insertionPoint.insertNode(img);
-          insertionPoint.setStartAfter(img);
-          insertionPoint.setEndAfter(img);
+          insertionPoint.insertNode(container);
+          insertionPoint.setStartAfter(container);
+          insertionPoint.setEndAfter(container);
         } else if (editorRef.current) {
-          editorRef.current.appendChild(img);
+          editorRef.current.appendChild(container);
         }
       }
 
@@ -262,27 +314,24 @@ export function NotesPage() {
           .from('attachments')
           .getPublicUrl(fileName);
 
+        const container = document.createElement('div');
+        container.contentEditable = 'false';
+        container.style.display = 'inline-block';
+        container.style.margin = '10px 0';
+        container.style.maxWidth = '100%';
+        container.setAttribute('data-attachment-url', urlData.publicUrl);
+        container.setAttribute('data-storage-path', fileName);
+
         const fileLink = document.createElement('div');
-        fileLink.style.display = 'inline-flex';
+        fileLink.style.display = 'flex';
         fileLink.style.alignItems = 'center';
         fileLink.style.gap = '8px';
         fileLink.style.padding = '12px 16px';
-        fileLink.style.margin = '10px 0';
         fileLink.style.backgroundColor = '#f1f5f9';
         fileLink.style.border = '1px solid #e2e8f0';
         fileLink.style.borderRadius = '8px';
         fileLink.style.cursor = 'pointer';
         fileLink.style.transition = 'all 0.2s';
-        fileLink.style.maxWidth = '100%';
-        fileLink.onmouseover = () => {
-          fileLink.style.backgroundColor = '#e2e8f0';
-          fileLink.style.borderColor = '#cbd5e1';
-        };
-        fileLink.onmouseout = () => {
-          fileLink.style.backgroundColor = '#f1f5f9';
-          fileLink.style.borderColor = '#e2e8f0';
-        };
-        fileLink.onclick = () => window.open(urlData.publicUrl, '_blank');
 
         const icon = document.createElement('span');
         icon.textContent = getFileIcon(file.type);
@@ -312,15 +361,69 @@ export function NotesPage() {
         fileLink.appendChild(icon);
         fileLink.appendChild(textContainer);
 
+        const deleteBtn = document.createElement('button');
+        deleteBtn.innerHTML = '✕';
+        deleteBtn.style.width = '28px';
+        deleteBtn.style.height = '28px';
+        deleteBtn.style.borderRadius = '50%';
+        deleteBtn.style.backgroundColor = '#ef4444';
+        deleteBtn.style.color = 'white';
+        deleteBtn.style.border = 'none';
+        deleteBtn.style.cursor = 'pointer';
+        deleteBtn.style.fontSize = '16px';
+        deleteBtn.style.display = 'flex';
+        deleteBtn.style.alignItems = 'center';
+        deleteBtn.style.justifyContent = 'center';
+        deleteBtn.style.flexShrink = '0';
+        deleteBtn.style.marginLeft = 'auto';
+        deleteBtn.style.opacity = '0';
+        deleteBtn.style.transition = 'opacity 0.2s, background-color 0.2s';
+        deleteBtn.style.fontWeight = 'bold';
+        deleteBtn.title = 'Delete file';
+        deleteBtn.onmouseover = () => { deleteBtn.style.backgroundColor = '#dc2626'; };
+        deleteBtn.onmouseout = () => { deleteBtn.style.backgroundColor = '#ef4444'; };
+        deleteBtn.onclick = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (confirm(`Delete ${file.name}?`)) {
+            try {
+              await supabase.storage.from('attachments').remove([fileName]);
+              container.remove();
+            } catch (error) {
+              console.error('Error deleting file:', error);
+              alert('Failed to delete file');
+            }
+          }
+        };
+
+        fileLink.appendChild(deleteBtn);
+        fileLink.onmouseover = () => {
+          fileLink.style.backgroundColor = '#e2e8f0';
+          fileLink.style.borderColor = '#cbd5e1';
+          deleteBtn.style.opacity = '1';
+        };
+        fileLink.onmouseout = () => {
+          fileLink.style.backgroundColor = '#f1f5f9';
+          fileLink.style.borderColor = '#e2e8f0';
+          deleteBtn.style.opacity = '0';
+        };
+        fileLink.onclick = (e) => {
+          if (e.target !== deleteBtn && !deleteBtn.contains(e.target as Node)) {
+            window.open(urlData.publicUrl, '_blank');
+          }
+        };
+
+        container.appendChild(fileLink);
+
         if (insertionPoint) {
-          insertionPoint.insertNode(fileLink);
+          insertionPoint.insertNode(container);
           const br = document.createElement('br');
-          insertionPoint.setStartAfter(fileLink);
+          insertionPoint.setStartAfter(container);
           insertionPoint.insertNode(br);
           insertionPoint.setStartAfter(br);
           insertionPoint.setEndAfter(br);
         } else if (editorRef.current) {
-          editorRef.current.appendChild(fileLink);
+          editorRef.current.appendChild(container);
           editorRef.current.appendChild(document.createElement('br'));
         }
       }
