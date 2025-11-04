@@ -12,3 +12,12 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+[contenteditable] img {
+  max-width: 100%;
+  height: auto;
+  margin: 10px 0;
+  border-radius: 4px;
+  display: block;
+  cursor: pointer;
+}

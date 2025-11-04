@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Bold, Type } from 'lucide-react';
+import { Plus, Trash2, Bold, Type, Image } from 'lucide-react';
 import { supabase, Note } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -13,7 +13,9 @@ export function NotesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadNotes();
@@ -116,6 +118,72 @@ export function NotesPage() {
   const execCommand = (command: string, value?: string) => {
     document.execCommand(command, false, value);
     editorRef.current?.focus();
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image size must be less than 10MB');
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+
+      const timestamp = Date.now();
+      const fileName = `${user.id}/notes/${timestamp}-${file.name}`;
+
+      const { data, error } = await supabase.storage
+        .from('attachments')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from('attachments')
+        .getPublicUrl(fileName);
+
+      const img = document.createElement('img');
+      img.src = urlData.publicUrl;
+      img.style.maxWidth = '100%';
+      img.style.height = 'auto';
+      img.style.margin = '10px 0';
+      img.style.borderRadius = '4px';
+
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(img);
+
+        range.setStartAfter(img);
+        range.setEndAfter(img);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } else if (editorRef.current) {
+        editorRef.current.appendChild(img);
+      }
+
+      editorRef.current?.focus();
+    } catch (error) {
+      console.error('error uploading image:', error);
+      alert('Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -244,6 +312,25 @@ export function NotesPage() {
           >
             XL
           </button>
+
+          <div className="w-px h-6 bg-[#e2e8f0] mx-2"></div>
+
+          <button
+            onClick={() => imageInputRef.current?.click()}
+            disabled={uploadingImage}
+            className="p-2 text-[#64748b] hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
+            title="Insert image"
+          >
+            <Image size={18} />
+          </button>
+
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
 
           <div className="flex-1"></div>
 
