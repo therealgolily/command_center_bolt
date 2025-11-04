@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Bold, Type, Image } from 'lucide-react';
+import { Plus, Trash2, Bold, Type, Image, Paperclip } from 'lucide-react';
 import { supabase, Note } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -14,8 +14,10 @@ export function NotesPage() {
   const [saving, setSaving] = useState(false);
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadNotes();
@@ -131,8 +133,8 @@ export function NotesPage() {
         alert(`${file.name} is not an image file`);
         continue;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        alert(`${file.name} exceeds 10MB limit`);
+      if (file.size > 50 * 1024 * 1024) {
+        alert(`${file.name} exceeds 50MB limit`);
         continue;
       }
       validFiles.push(file);
@@ -196,6 +198,146 @@ export function NotesPage() {
       setUploadingImage(false);
       if (imageInputRef.current) {
         imageInputRef.current.value = '';
+      }
+    }
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType.includes('pdf')) return '📄';
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) return '📊';
+    if (mimeType.includes('video')) return '🎥';
+    if (mimeType.includes('audio')) return '🎵';
+    if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('compressed')) return '📦';
+    if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return '📽️';
+    return '📎';
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    const validFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.size > 50 * 1024 * 1024) {
+        alert(`${file.name} exceeds 50MB limit`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) return;
+
+    try {
+      setUploadingFile(true);
+
+      const selection = window.getSelection();
+      let insertionPoint: Range | null = null;
+
+      if (selection && selection.rangeCount > 0) {
+        insertionPoint = selection.getRangeAt(0);
+      }
+
+      for (const file of validFiles) {
+        const timestamp = Date.now() + Math.random();
+        const fileName = `${user.id}/notes/${timestamp}-${file.name}`;
+
+        const { data, error } = await supabase.storage
+          .from('attachments')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (error) throw error;
+
+        const { data: urlData } = supabase.storage
+          .from('attachments')
+          .getPublicUrl(fileName);
+
+        const fileLink = document.createElement('div');
+        fileLink.style.display = 'inline-flex';
+        fileLink.style.alignItems = 'center';
+        fileLink.style.gap = '8px';
+        fileLink.style.padding = '12px 16px';
+        fileLink.style.margin = '10px 0';
+        fileLink.style.backgroundColor = '#f1f5f9';
+        fileLink.style.border = '1px solid #e2e8f0';
+        fileLink.style.borderRadius = '8px';
+        fileLink.style.cursor = 'pointer';
+        fileLink.style.transition = 'all 0.2s';
+        fileLink.style.maxWidth = '100%';
+        fileLink.onmouseover = () => {
+          fileLink.style.backgroundColor = '#e2e8f0';
+          fileLink.style.borderColor = '#cbd5e1';
+        };
+        fileLink.onmouseout = () => {
+          fileLink.style.backgroundColor = '#f1f5f9';
+          fileLink.style.borderColor = '#e2e8f0';
+        };
+        fileLink.onclick = () => window.open(urlData.publicUrl, '_blank');
+
+        const icon = document.createElement('span');
+        icon.textContent = getFileIcon(file.type);
+        icon.style.fontSize = '24px';
+
+        const textContainer = document.createElement('div');
+        textContainer.style.display = 'flex';
+        textContainer.style.flexDirection = 'column';
+        textContainer.style.minWidth = '0';
+
+        const nameEl = document.createElement('div');
+        nameEl.textContent = file.name;
+        nameEl.style.fontWeight = '500';
+        nameEl.style.color = '#1e293b';
+        nameEl.style.fontSize = '14px';
+        nameEl.style.overflow = 'hidden';
+        nameEl.style.textOverflow = 'ellipsis';
+        nameEl.style.whiteSpace = 'nowrap';
+
+        const sizeEl = document.createElement('div');
+        sizeEl.textContent = formatFileSize(file.size);
+        sizeEl.style.color = '#64748b';
+        sizeEl.style.fontSize = '12px';
+
+        textContainer.appendChild(nameEl);
+        textContainer.appendChild(sizeEl);
+        fileLink.appendChild(icon);
+        fileLink.appendChild(textContainer);
+
+        if (insertionPoint) {
+          insertionPoint.insertNode(fileLink);
+          const br = document.createElement('br');
+          insertionPoint.setStartAfter(fileLink);
+          insertionPoint.insertNode(br);
+          insertionPoint.setStartAfter(br);
+          insertionPoint.setEndAfter(br);
+        } else if (editorRef.current) {
+          editorRef.current.appendChild(fileLink);
+          editorRef.current.appendChild(document.createElement('br'));
+        }
+      }
+
+      if (selection && insertionPoint) {
+        selection.removeAllRanges();
+        selection.addRange(insertionPoint);
+      }
+
+      editorRef.current?.focus();
+    } catch (error) {
+      console.error('error uploading files:', error);
+      alert('Failed to upload files');
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
     }
   };
@@ -344,6 +486,23 @@ export function NotesPage() {
             accept="image/*"
             multiple
             onChange={handleImageUpload}
+            className="hidden"
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingFile}
+            className="p-2 text-[#64748b] hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
+            title="Attach file"
+          >
+            <Paperclip size={18} />
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            onChange={handleFileUpload}
             className="hidden"
           />
 
