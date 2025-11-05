@@ -180,11 +180,40 @@ function adjustTimeBlockForDate(timeBlock: string, targetDate: Date): string {
   return adjusted.toISOString();
 }
 
+const LAST_RUN_KEY = 'lastRecurringEngineRun';
+const MIN_RUN_INTERVAL_MS = 60 * 60 * 1000;
+
+function formatDateOnly(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export async function runRecurringTaskEngine(userId: string): Promise<{ created: number; errors: string[] }> {
   const errors: string[] = [];
   let created = 0;
 
   try {
+    console.log("🔄 Starting recurring task engine...");
+
+    const lastRun = localStorage.getItem(LAST_RUN_KEY);
+    if (lastRun) {
+      const lastRunTime = new Date(lastRun);
+      const now = new Date();
+      const msSinceLastRun = now.getTime() - lastRunTime.getTime();
+
+      if (msSinceLastRun < MIN_RUN_INTERVAL_MS) {
+        const minutesRemaining = Math.ceil((MIN_RUN_INTERVAL_MS - msSinceLastRun) / (1000 * 60));
+        console.log(`⏭️ Engine ran ${Math.floor(msSinceLastRun / (1000 * 60))} minutes ago. Skipping (${minutesRemaining} min remaining)`);
+        return { created: 0, errors: [] };
+      }
+    }
+
+    localStorage.setItem(LAST_RUN_KEY, new Date().toISOString());
+
+    console.log("✓ Rate limit check passed, proceeding...");
+
     const { data: recurringTasks, error: fetchError } = await supabase
       .from('tasks')
       .select('*')
@@ -214,7 +243,26 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
           continue;
         }
 
-        console.log(`Processing "${parentTask.title}" with rule: ${parentTask.recurrence_rule}`);
+        console.log(`📋 Processing "${parentTask.title}" with rule: ${parentTask.recurrence_rule}`);
+
+        const todayStr = formatDateOnly(today);
+
+        const { data: todayInstances, error: todayCheckError } = await supabase
+          .from('tasks')
+          .select('id, created_at, due_date')
+          .eq('parent_task_id', parentTask.id)
+          .gte('created_at', `${todayStr}T00:00:00`);
+
+        if (todayCheckError) {
+          console.error(`❌ Error checking today's instances:`, todayCheckError);
+          errors.push(`Failed to check today's instances for "${parentTask.title}": ${todayCheckError.message}`);
+          continue;
+        }
+
+        if (todayInstances && todayInstances.length > 0) {
+          console.log(`✓ Already created ${todayInstances.length} instance(s) today for "${parentTask.title}", skipping`);
+          continue;
+        }
 
         const { data: instances } = await supabase
           .from('tasks')
@@ -228,29 +276,38 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
           ? new Date(lastInstance.due_date)
           : null;
 
-        console.log(`Last instance date: ${lastInstanceDate?.toISOString().split('T')[0] || 'none'}`);
+        console.log(`📅 Last instance date: ${lastInstanceDate ? formatDateOnly(lastInstanceDate) : 'none'}`);
 
         const nextDueDate = calculateNextDueDate(parentTask.recurrence_rule, today);
-        const dueDateString = nextDueDate.toISOString().split('T')[0];
+        const dueDateString = formatDateOnly(nextDueDate);
 
-        console.log(`Next due date calculated: ${dueDateString}`);
+        console.log(`📅 Next due date calculated: ${dueDateString}`);
 
         if (shouldCreateInstance(parentTask, lastInstanceDate, nextDueDate, today)) {
-          const { data: existingInstance } = await supabase
-            .from('tasks')
-            .select('id')
-            .eq('parent_task_id', parentTask.id)
-            .eq('due_date', dueDateString)
-            .maybeSingle();
+          console.log(`🔍 Checking for existing instance with due_date: ${dueDateString}`);
 
-          if (existingInstance) {
-            console.log(`Instance already exists for ${dueDateString}`);
+          const { data: existingInstances, error: checkError } = await supabase
+            .from('tasks')
+            .select('id, title, due_date, created_at')
+            .eq('parent_task_id', parentTask.id)
+            .eq('due_date', dueDateString);
+
+          if (checkError) {
+            console.error(`❌ Error checking existing instances:`, checkError);
+            errors.push(`Failed to check existing instances for "${parentTask.title}": ${checkError.message}`);
+            continue;
+          }
+
+          console.log(`🔍 Found ${existingInstances?.length || 0} existing instances for ${dueDateString}`);
+
+          if (existingInstances && existingInstances.length > 0) {
+            console.log(`✓ Instance already exists for ${dueDateString}, skipping`);
             continue;
           }
 
           const status = calculateStatusFromDueDate(nextDueDate, today);
 
-          console.log(`Creating instance with status: ${status}`);
+          console.log(`✨ Creating instance with status: ${status}`);
 
           const newInstance: Partial<Task> = {
             user_id: userId,
@@ -277,13 +334,13 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
 
           if (insertError) {
             errors.push(`Failed to create instance for "${parentTask.title}": ${insertError.message}`);
-            console.error('Insert error:', insertError);
+            console.error('❌ Insert error:', insertError);
           } else {
             created++;
-            console.log(`Successfully created instance for "${parentTask.title}"`);
+            console.log(`✅ Successfully created instance for "${parentTask.title}"`);
           }
         } else {
-          console.log(`Should not create instance yet`);
+          console.log(`⏭️ Should not create instance yet`);
         }
       } catch (err) {
         errors.push(`Error processing "${parentTask.title}": ${err}`);
@@ -296,4 +353,84 @@ export async function runRecurringTaskEngine(userId: string): Promise<{ created:
   }
 
   return { created, errors };
+}
+
+export async function cleanupDuplicateInstances(userId: string): Promise<{ deleted: number; errors: string[] }> {
+  const errors: string[] = [];
+  let deleted = 0;
+
+  try {
+    console.log("🧹 Starting duplicate cleanup...");
+
+    const { data: allInstances, error: fetchError } = await supabase
+      .from('tasks')
+      .select('id, parent_task_id, due_date, created_at')
+      .eq('user_id', userId)
+      .not('parent_task_id', 'is', null)
+      .order('parent_task_id')
+      .order('due_date')
+      .order('created_at');
+
+    if (fetchError) {
+      errors.push(`Failed to fetch instances: ${fetchError.message}`);
+      return { deleted, errors };
+    }
+
+    if (!allInstances || allInstances.length === 0) {
+      console.log("No instances found");
+      return { deleted, errors };
+    }
+
+    const groupedByParentAndDate: { [key: string]: typeof allInstances } = {};
+
+    for (const instance of allInstances) {
+      if (!instance.parent_task_id || !instance.due_date) continue;
+
+      const key = `${instance.parent_task_id}|${instance.due_date}`;
+
+      if (!groupedByParentAndDate[key]) {
+        groupedByParentAndDate[key] = [];
+      }
+
+      groupedByParentAndDate[key].push(instance);
+    }
+
+    for (const [key, instances] of Object.entries(groupedByParentAndDate)) {
+      if (instances.length > 1) {
+        const [parentId, dueDate] = key.split('|');
+        console.log(`🔍 Found ${instances.length} duplicates for parent ${parentId} on ${dueDate}`);
+
+        instances.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+        const toKeep = instances[0];
+        const toDelete = instances.slice(1);
+
+        console.log(`  Keeping: ${toKeep.id} (created ${toKeep.created_at})`);
+
+        for (const duplicate of toDelete) {
+          console.log(`  Deleting: ${duplicate.id} (created ${duplicate.created_at})`);
+
+          const { error: deleteError } = await supabase
+            .from('tasks')
+            .delete()
+            .eq('id', duplicate.id);
+
+          if (deleteError) {
+            errors.push(`Failed to delete duplicate ${duplicate.id}: ${deleteError.message}`);
+            console.error(`❌ Delete error:`, deleteError);
+          } else {
+            deleted++;
+            console.log(`  ✅ Deleted duplicate ${duplicate.id}`);
+          }
+        }
+      }
+    }
+
+    console.log(`✅ Cleanup complete. Deleted ${deleted} duplicates`);
+  } catch (err) {
+    errors.push(`Cleanup error: ${err}`);
+    console.error('Cleanup error:', err);
+  }
+
+  return { deleted, errors };
 }

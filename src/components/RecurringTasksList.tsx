@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Repeat, Pause, Play, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Repeat, Pause, Play, Trash2, ChevronDown, ChevronUp, Eraser } from 'lucide-react';
 import { Task, supabase } from '../lib/supabase';
-import { formatRecurrenceRule } from '../lib/recurringEngine';
+import { formatRecurrenceRule, cleanupDuplicateInstances } from '../lib/recurringEngine';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useAuth } from '../contexts/AuthContext';
 
 type RecurringTasksListProps = {
   recurringTasks: Task[];
@@ -10,9 +11,11 @@ type RecurringTasksListProps = {
 };
 
 export function RecurringTasksList({ recurringTasks, onUpdate }: RecurringTasksListProps) {
+  const { user } = useAuth();
   const [expanded, setExpanded] = useState(true);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [deleteInstances, setDeleteInstances] = useState(false);
+  const [cleaningUp, setCleaningUp] = useState(false);
 
   const handleTogglePause = async (task: Task) => {
     const { error } = await supabase
@@ -50,6 +53,33 @@ export function RecurringTasksList({ recurringTasks, onUpdate }: RecurringTasksL
     onUpdate();
   };
 
+  const handleCleanupDuplicates = async () => {
+    if (!user || cleaningUp) return;
+
+    if (!confirm('This will find and delete duplicate recurring task instances. Continue?')) {
+      return;
+    }
+
+    setCleaningUp(true);
+
+    try {
+      const result = await cleanupDuplicateInstances(user.id);
+
+      if (result.errors.length > 0) {
+        alert(`Cleanup completed with errors:\n${result.errors.join('\n')}`);
+      } else {
+        alert(`Successfully deleted ${result.deleted} duplicate instances.`);
+      }
+
+      onUpdate();
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      alert('Failed to cleanup duplicates. Check console for details.');
+    } finally {
+      setCleaningUp(false);
+    }
+  };
+
   if (recurringTasks.length === 0) {
     return (
       <div className="bg-white rounded-lg border border-[#e2e8f0] p-6">
@@ -69,15 +99,26 @@ export function RecurringTasksList({ recurringTasks, onUpdate }: RecurringTasksL
   return (
     <div className="bg-white rounded-lg border border-[#e2e8f0]">
       <div className="p-4 border-b border-[#e2e8f0]">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-2 hover:opacity-70 transition-opacity"
-        >
-          <Repeat size={20} className="text-purple-600" />
-          <h3 className="font-semibold text-[#1e293b]">recurring tasks</h3>
-          <span className="text-sm text-[#64748b]">({recurringTasks.length})</span>
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </button>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+          >
+            <Repeat size={20} className="text-purple-600" />
+            <h3 className="font-semibold text-[#1e293b]">recurring tasks</h3>
+            <span className="text-sm text-[#64748b]">({recurringTasks.length})</span>
+            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+          <button
+            onClick={handleCleanupDuplicates}
+            disabled={cleaningUp}
+            className="px-3 py-1.5 text-xs bg-orange-100 text-orange-700 rounded-md hover:bg-orange-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            title="Remove duplicate recurring task instances"
+          >
+            <Eraser size={14} />
+            {cleaningUp ? 'cleaning...' : 'clean duplicates'}
+          </button>
+        </div>
       </div>
 
       {expanded && (
