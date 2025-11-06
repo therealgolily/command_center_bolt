@@ -356,28 +356,46 @@ export function WeeklyKanban() {
     );
   }
 
-  const getWeekDates = (weekOffset: number = 0) => {
-    const today = new Date();
-    const currentDay = today.getDay();
-    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + mondayOffset + (weekOffset * 7));
-
-    const weekDates: Record<DayOfWeek, number> = {
-      monday: monday.getDate(),
-      tuesday: new Date(monday.getTime() + 1 * 24 * 60 * 60 * 1000).getDate(),
-      wednesday: new Date(monday.getTime() + 2 * 24 * 60 * 60 * 1000).getDate(),
-      thursday: new Date(monday.getTime() + 3 * 24 * 60 * 60 * 1000).getDate(),
-      friday: new Date(monday.getTime() + 4 * 24 * 60 * 60 * 1000).getDate(),
-      saturday: new Date(monday.getTime() + 5 * 24 * 60 * 60 * 1000).getDate(),
-      sunday: new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000).getDate(),
-    };
-
-    return weekDates;
+  const getTodayInEST = () => {
+    const now = new Date();
+    const estOffset = -5;
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const estDate = new Date(utc + (3600000 * estOffset));
+    return estDate;
   };
 
-  const currentWeekDates = getWeekDates(0);
-  const nextWeekDates = getWeekDates(1);
+  const getRotatedDays = () => {
+    const today = getTodayInEST();
+    const dayIndex = today.getDay();
+
+    const dayMapping = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDayName = dayMapping[dayIndex] as DayOfWeek;
+
+    const dayOrder = [...DAYS];
+    const currentIndex = dayOrder.indexOf(currentDayName);
+    const rotatedDays = [...dayOrder.slice(currentIndex), ...dayOrder.slice(0, currentIndex)];
+
+    return rotatedDays;
+  };
+
+  const getDateForDay = (day: DayOfWeek, weekOffset: number = 0) => {
+    const today = getTodayInEST();
+    const dayMapping = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDayIndex = today.getDay();
+    const targetDayIndex = dayMapping.indexOf(day);
+
+    let daysToAdd = targetDayIndex - currentDayIndex;
+    if (daysToAdd < 0) {
+      daysToAdd += 7;
+    }
+
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + daysToAdd + (weekOffset * 7));
+
+    return targetDate.getDate();
+  };
+
+  const rotatedDays = getRotatedDays();
 
   return (
     <div className="space-y-6">
@@ -391,7 +409,7 @@ export function WeeklyKanban() {
       >
         <div className="space-y-8">
           <div className="flex gap-4 overflow-x-auto pb-4">
-            {DAYS.map((day) => {
+            {rotatedDays.map((day) => {
               const dayNotes = notes
                 .filter((n) => n.day_of_week === day && n.week_number === 0)
                 .sort((a, b) => a.position - b.position);
@@ -400,7 +418,7 @@ export function WeeklyKanban() {
                 <DayColumn
                   key={`week0-${day}`}
                   day={day}
-                  dateNumber={currentWeekDates[day]}
+                  dateNumber={getDateForDay(day, 0)}
                   weekNumber={0}
                   notes={dayNotes}
                   onAddNote={handleAddNote}
@@ -413,7 +431,7 @@ export function WeeklyKanban() {
           </div>
 
           <div className="flex gap-4 overflow-x-auto pb-4">
-            {DAYS.map((day) => {
+            {rotatedDays.map((day) => {
               const dayNotes = notes
                 .filter((n) => n.day_of_week === day && n.week_number === 1)
                 .sort((a, b) => a.position - b.position);
@@ -422,7 +440,7 @@ export function WeeklyKanban() {
                 <DayColumn
                   key={`week1-${day}`}
                   day={day}
-                  dateNumber={nextWeekDates[day]}
+                  dateNumber={getDateForDay(day, 1)}
                   weekNumber={1}
                   notes={dayNotes}
                   onAddNote={handleAddNote}
