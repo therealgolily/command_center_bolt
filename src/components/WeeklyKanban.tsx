@@ -81,7 +81,7 @@ function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: Sti
     <div
       ref={setNodeRef}
       style={style}
-      className={`${colorStyle.bg} ${colorStyle.text} p-4 rounded-lg border-2 ${colorStyle.border} shadow-md cursor-grab active:cursor-grabbing relative group min-h-[100px]`}
+      className={`${colorStyle.bg} ${colorStyle.text} p-4 rounded-lg border-2 ${colorStyle.border} shadow-md cursor-grab active:cursor-grabbing relative group`}
       {...attributes}
       {...listeners}
     >
@@ -132,7 +132,8 @@ function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: Sti
           onKeyDown={handleKeyDown}
           autoFocus
           className={`w-full ${colorStyle.bg} ${colorStyle.text} resize-none focus:outline-none font-handwriting text-xs`}
-          style={{ minHeight: '60px' }}
+          style={{ minHeight: '60px', height: 'auto' }}
+          rows={Math.max(3, editContent.split('\n').length)}
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
