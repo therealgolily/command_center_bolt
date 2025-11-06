@@ -171,7 +171,7 @@ function DayColumn({
     <div className="flex-1 min-w-[200px] flex flex-col">
       <div className={`bg-gradient-to-br ${DAY_COLORS[day]} p-4 rounded-t-lg shadow-lg`}>
         <h3 className="text-white font-bold text-lg uppercase text-center tracking-wider">
-          {day} {dateNumber}
+          {day} | {dateNumber}
         </h3>
       </div>
       <SortableContext items={notes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
