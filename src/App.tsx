@@ -8,12 +8,13 @@ import { ClientsPage } from './components/ClientsPage';
 import { MoneyPage } from './components/MoneyPage';
 import { NotesPage } from './components/NotesPage';
 import { SettingsPage } from './components/SettingsPage';
+import { WeeklyKanban } from './components/WeeklyKanban';
 import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
 import { supabase } from './lib/supabase';
 
-type Page = 'planning' | 'calendar' | 'clients' | 'money' | 'notes' | 'settings';
+type Page = 'planning' | 'calendar' | 'clients' | 'money' | 'notes' | 'kanban' | 'settings';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -79,6 +80,7 @@ function AppContent() {
         {currentPage === 'clients' && <ClientsPage />}
         {currentPage === 'money' && <MoneyPage />}
         {currentPage === 'notes' && <NotesPage />}
+        {currentPage === 'kanban' && <WeeklyKanban />}
         {currentPage === 'settings' && <SettingsPage />}
       </AppLayout>
 

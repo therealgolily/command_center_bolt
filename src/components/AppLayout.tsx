@@ -1,9 +1,9 @@
-import { Calendar, CalendarDays, Users, DollarSign, Plus, Settings, Keyboard, FileText } from 'lucide-react';
+import { Calendar, CalendarDays, Users, DollarSign, Plus, Settings, Keyboard, FileText, Columns3 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ShortcutsModal } from './ShortcutsModal';
 
-type Page = 'planning' | 'calendar' | 'clients' | 'money' | 'notes' | 'settings';
+type Page = 'planning' | 'calendar' | 'clients' | 'money' | 'notes' | 'kanban' | 'settings';
 
 type AppLayoutProps = {
   children: React.ReactNode;
@@ -88,6 +88,19 @@ export function AppLayout({ children, currentPage, onNavigate, onQuickCapture }:
               >
                 <FileText size={18} />
                 notes
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => onNavigate('kanban')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${
+                  currentPage === 'kanban'
+                    ? 'bg-[#3b82f6] text-white'
+                    : 'text-[#64748b] hover:bg-gray-100'
+                }`}
+              >
+                <Columns3 size={18} />
+                weekly kanban
               </button>
             </li>
           </ul>

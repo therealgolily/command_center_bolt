@@ -108,3 +108,14 @@ export type AssetAccount = {
   created_at: string;
   updated_at: string;
 };
+
+export type StickyNote = {
+  id: string;
+  user_id: string;
+  content: string;
+  day_of_week: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+  position: number;
+  color: 'yellow' | 'pink' | 'blue' | 'green' | 'orange' | 'purple';
+  created_at: string;
+  updated_at: string;
+};
