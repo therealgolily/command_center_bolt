@@ -131,7 +131,7 @@ function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: Sti
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
           autoFocus
-          className={`w-full ${colorStyle.bg} ${colorStyle.text} resize-none focus:outline-none font-handwriting text-sm`}
+          className={`w-full ${colorStyle.bg} ${colorStyle.text} resize-none focus:outline-none font-handwriting text-xs`}
           style={{ minHeight: '60px' }}
           onClick={(e) => e.stopPropagation()}
         />
@@ -141,7 +141,7 @@ function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: Sti
             e.stopPropagation();
             setIsEditing(true);
           }}
-          className="whitespace-pre-wrap break-words font-handwriting text-sm cursor-text"
+          className="whitespace-pre-wrap break-words font-handwriting text-xs cursor-text"
         >
           {note.content}
         </div>
@@ -152,6 +152,7 @@ function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: Sti
 
 function DayColumn({
   day,
+  dateNumber,
   notes,
   onAddNote,
   onDeleteNote,
@@ -159,6 +160,7 @@ function DayColumn({
   onUpdateNote
 }: {
   day: DayOfWeek;
+  dateNumber: number;
   notes: StickyNote[];
   onAddNote: (day: DayOfWeek) => void;
   onDeleteNote: (id: string) => void;
@@ -169,7 +171,7 @@ function DayColumn({
     <div className="flex-1 min-w-[200px] flex flex-col">
       <div className={`bg-gradient-to-br ${DAY_COLORS[day]} p-4 rounded-t-lg shadow-lg`}>
         <h3 className="text-white font-bold text-lg uppercase text-center tracking-wider">
-          {day}
+          {day} {dateNumber}
         </h3>
       </div>
       <SortableContext items={notes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
@@ -347,6 +349,28 @@ export function WeeklyKanban() {
     );
   }
 
+  const getWeekDates = () => {
+    const today = new Date();
+    const currentDay = today.getDay();
+    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+
+    const weekDates: Record<DayOfWeek, number> = {
+      monday: monday.getDate(),
+      tuesday: new Date(monday.getTime() + 1 * 24 * 60 * 60 * 1000).getDate(),
+      wednesday: new Date(monday.getTime() + 2 * 24 * 60 * 60 * 1000).getDate(),
+      thursday: new Date(monday.getTime() + 3 * 24 * 60 * 60 * 1000).getDate(),
+      friday: new Date(monday.getTime() + 4 * 24 * 60 * 60 * 1000).getDate(),
+      saturday: new Date(monday.getTime() + 5 * 24 * 60 * 60 * 1000).getDate(),
+      sunday: new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000).getDate(),
+    };
+
+    return weekDates;
+  };
+
+  const weekDates = getWeekDates();
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-[#1e293b]">weekly kanban</h2>
@@ -367,6 +391,7 @@ export function WeeklyKanban() {
               <DayColumn
                 key={day}
                 day={day}
+                dateNumber={weekDates[day]}
                 notes={dayNotes}
                 onAddNote={handleAddNote}
                 onDeleteNote={handleDeleteNote}
