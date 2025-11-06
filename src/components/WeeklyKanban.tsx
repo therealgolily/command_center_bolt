@@ -390,54 +390,48 @@ export function WeeklyKanban() {
         onDragEnd={handleDragEnd}
       >
         <div className="space-y-8">
-          <div>
-            <h3 className="text-lg font-semibold text-[#1e293b] mb-3">current week</h3>
-            <div className="flex gap-4 overflow-x-auto pb-4">
-              {DAYS.map((day) => {
-                const dayNotes = notes
-                  .filter((n) => n.day_of_week === day && n.week_number === 0)
-                  .sort((a, b) => a.position - b.position);
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {DAYS.map((day) => {
+              const dayNotes = notes
+                .filter((n) => n.day_of_week === day && n.week_number === 0)
+                .sort((a, b) => a.position - b.position);
 
-                return (
-                  <DayColumn
-                    key={`week0-${day}`}
-                    day={day}
-                    dateNumber={currentWeekDates[day]}
-                    weekNumber={0}
-                    notes={dayNotes}
-                    onAddNote={handleAddNote}
-                    onDeleteNote={handleDeleteNote}
-                    onColorChange={handleColorChange}
-                    onUpdateNote={handleUpdateNote}
-                  />
-                );
-              })}
-            </div>
+              return (
+                <DayColumn
+                  key={`week0-${day}`}
+                  day={day}
+                  dateNumber={currentWeekDates[day]}
+                  weekNumber={0}
+                  notes={dayNotes}
+                  onAddNote={handleAddNote}
+                  onDeleteNote={handleDeleteNote}
+                  onColorChange={handleColorChange}
+                  onUpdateNote={handleUpdateNote}
+                />
+              );
+            })}
           </div>
 
-          <div>
-            <h3 className="text-lg font-semibold text-[#1e293b] mb-3">next week</h3>
-            <div className="flex gap-4 overflow-x-auto pb-4">
-              {DAYS.map((day) => {
-                const dayNotes = notes
-                  .filter((n) => n.day_of_week === day && n.week_number === 1)
-                  .sort((a, b) => a.position - b.position);
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {DAYS.map((day) => {
+              const dayNotes = notes
+                .filter((n) => n.day_of_week === day && n.week_number === 1)
+                .sort((a, b) => a.position - b.position);
 
-                return (
-                  <DayColumn
-                    key={`week1-${day}`}
-                    day={day}
-                    dateNumber={nextWeekDates[day]}
-                    weekNumber={1}
-                    notes={dayNotes}
-                    onAddNote={handleAddNote}
-                    onDeleteNote={handleDeleteNote}
-                    onColorChange={handleColorChange}
-                    onUpdateNote={handleUpdateNote}
-                  />
-                );
-              })}
-            </div>
+              return (
+                <DayColumn
+                  key={`week1-${day}`}
+                  day={day}
+                  dateNumber={nextWeekDates[day]}
+                  weekNumber={1}
+                  notes={dayNotes}
+                  onAddNote={handleAddNote}
+                  onDeleteNote={handleDeleteNote}
+                  onColorChange={handleColorChange}
+                  onUpdateNote={handleUpdateNote}
+                />
+              );
+            })}
           </div>
         </div>
 
