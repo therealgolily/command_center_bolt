@@ -116,6 +116,7 @@ export type StickyNote = {
   day_of_week: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
   position: number;
   color: 'yellow' | 'pink' | 'blue' | 'green' | 'orange' | 'purple';
+  week_number: number;
   created_at: string;
   updated_at: string;
 };

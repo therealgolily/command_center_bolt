@@ -154,6 +154,7 @@ function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: Sti
 function DayColumn({
   day,
   dateNumber,
+  weekNumber,
   notes,
   onAddNote,
   onDeleteNote,
@@ -162,8 +163,9 @@ function DayColumn({
 }: {
   day: DayOfWeek;
   dateNumber: number;
+  weekNumber: number;
   notes: StickyNote[];
-  onAddNote: (day: DayOfWeek) => void;
+  onAddNote: (day: DayOfWeek, weekNumber: number) => void;
   onDeleteNote: (id: string) => void;
   onColorChange: (id: string, color: NoteColor) => void;
   onUpdateNote: (id: string, content: string) => void;
@@ -181,7 +183,7 @@ function DayColumn({
             <StickyNoteCard key={note.id} note={note} onDelete={onDeleteNote} onColorChange={onColorChange} onUpdate={onUpdateNote} />
           ))}
           <button
-            onClick={() => onAddNote(day)}
+            onClick={() => onAddNote(day, weekNumber)}
             className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-white transition-colors flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700"
           >
             <Plus size={20} />
@@ -228,10 +230,10 @@ export function WeeklyKanban() {
     setLoading(false);
   };
 
-  const handleAddNote = async (day: DayOfWeek) => {
+  const handleAddNote = async (day: DayOfWeek, weekNumber: number) => {
     if (!user) return;
 
-    const dayNotes = notes.filter((n) => n.day_of_week === day);
+    const dayNotes = notes.filter((n) => n.day_of_week === day && n.week_number === weekNumber);
     const maxPosition = dayNotes.length > 0 ? Math.max(...dayNotes.map((n) => n.position)) : -1;
 
     const colors: NoteColor[] = ['yellow', 'pink', 'blue', 'green', 'orange', 'purple'];
@@ -243,6 +245,7 @@ export function WeeklyKanban() {
         user_id: user.id,
         content: 'new note...',
         day_of_week: day,
+        week_number: weekNumber,
         position: maxPosition + 1,
         color: randomColor,
       }])
@@ -300,21 +303,23 @@ export function WeeklyKanban() {
 
     const overNote = notes.find((n) => n.id === over.id);
     let newDay = activeNote.day_of_week;
+    let newWeek = activeNote.week_number;
     let newPosition = activeNote.position;
 
     if (overNote) {
       newDay = overNote.day_of_week;
-      const dayNotes = notes.filter((n) => n.day_of_week === newDay && n.id !== activeNote.id);
+      newWeek = overNote.week_number;
+      const dayNotes = notes.filter((n) => n.day_of_week === newDay && n.week_number === newWeek && n.id !== activeNote.id);
       const overIndex = dayNotes.findIndex((n) => n.id === overNote.id);
       newPosition = overIndex >= 0 ? overIndex : dayNotes.length;
     }
 
-    if (newDay !== activeNote.day_of_week || newPosition !== activeNote.position) {
+    if (newDay !== activeNote.day_of_week || newWeek !== activeNote.week_number || newPosition !== activeNote.position) {
       const updatedNotes = notes.map((n) => {
         if (n.id === activeNote.id) {
-          return { ...n, day_of_week: newDay, position: newPosition };
+          return { ...n, day_of_week: newDay, week_number: newWeek, position: newPosition };
         }
-        if (n.day_of_week === newDay && n.id !== activeNote.id) {
+        if (n.day_of_week === newDay && n.week_number === newWeek && n.id !== activeNote.id) {
           if (n.position >= newPosition) {
             return { ...n, position: n.position + 1 };
           }
@@ -328,12 +333,13 @@ export function WeeklyKanban() {
         .from('sticky_notes')
         .update({
           day_of_week: newDay,
+          week_number: newWeek,
           position: newPosition,
           updated_at: new Date().toISOString(),
         })
         .eq('id', activeNote.id);
 
-      for (const note of updatedNotes.filter((n) => n.day_of_week === newDay && n.id !== activeNote.id)) {
+      for (const note of updatedNotes.filter((n) => n.day_of_week === newDay && n.week_number === newWeek && n.id !== activeNote.id)) {
         await supabase
           .from('sticky_notes')
           .update({ position: note.position, updated_at: new Date().toISOString() })
@@ -350,12 +356,12 @@ export function WeeklyKanban() {
     );
   }
 
-  const getWeekDates = () => {
+  const getWeekDates = (weekOffset: number = 0) => {
     const today = new Date();
     const currentDay = today.getDay();
     const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
     const monday = new Date(today);
-    monday.setDate(today.getDate() + mondayOffset);
+    monday.setDate(today.getDate() + mondayOffset + (weekOffset * 7));
 
     const weekDates: Record<DayOfWeek, number> = {
       monday: monday.getDate(),
@@ -370,7 +376,8 @@ export function WeeklyKanban() {
     return weekDates;
   };
 
-  const weekDates = getWeekDates();
+  const currentWeekDates = getWeekDates(0);
+  const nextWeekDates = getWeekDates(1);
 
   return (
     <div className="space-y-6">
@@ -382,25 +389,56 @@ export function WeeklyKanban() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {DAYS.map((day) => {
-            const dayNotes = notes
-              .filter((n) => n.day_of_week === day)
-              .sort((a, b) => a.position - b.position);
+        <div className="space-y-8">
+          <div>
+            <h3 className="text-lg font-semibold text-[#1e293b] mb-3">current week</h3>
+            <div className="flex gap-4 overflow-x-auto pb-4">
+              {DAYS.map((day) => {
+                const dayNotes = notes
+                  .filter((n) => n.day_of_week === day && n.week_number === 0)
+                  .sort((a, b) => a.position - b.position);
 
-            return (
-              <DayColumn
-                key={day}
-                day={day}
-                dateNumber={weekDates[day]}
-                notes={dayNotes}
-                onAddNote={handleAddNote}
-                onDeleteNote={handleDeleteNote}
-                onColorChange={handleColorChange}
-                onUpdateNote={handleUpdateNote}
-              />
-            );
-          })}
+                return (
+                  <DayColumn
+                    key={`week0-${day}`}
+                    day={day}
+                    dateNumber={currentWeekDates[day]}
+                    weekNumber={0}
+                    notes={dayNotes}
+                    onAddNote={handleAddNote}
+                    onDeleteNote={handleDeleteNote}
+                    onColorChange={handleColorChange}
+                    onUpdateNote={handleUpdateNote}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold text-[#1e293b] mb-3">next week</h3>
+            <div className="flex gap-4 overflow-x-auto pb-4">
+              {DAYS.map((day) => {
+                const dayNotes = notes
+                  .filter((n) => n.day_of_week === day && n.week_number === 1)
+                  .sort((a, b) => a.position - b.position);
+
+                return (
+                  <DayColumn
+                    key={`week1-${day}`}
+                    day={day}
+                    dateNumber={nextWeekDates[day]}
+                    weekNumber={1}
+                    notes={dayNotes}
+                    onAddNote={handleAddNote}
+                    onDeleteNote={handleDeleteNote}
+                    onColorChange={handleColorChange}
+                    onUpdateNote={handleUpdateNote}
+                  />
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         <DragOverlay>
