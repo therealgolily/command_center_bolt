@@ -30,7 +30,7 @@ const NOTE_COLORS: Record<NoteColor, { bg: string; text: string; border: string 
   purple: { bg: 'bg-purple-200', text: 'text-purple-900', border: 'border-purple-400' },
 };
 
-function StickyNoteCard({ note, onDelete, onColorChange }: { note: StickyNote; onDelete: (id: string) => void; onColorChange: (id: string, color: NoteColor) => void }) {
+function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: StickyNote; onDelete: (id: string) => void; onColorChange: (id: string, color: NoteColor) => void; onUpdate: (id: string, content: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: note.id });
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(note.content);
@@ -50,10 +50,19 @@ function StickyNoteCard({ note, onDelete, onColorChange }: { note: StickyNote; o
       return;
     }
 
-    await supabase
+    const trimmedContent = editContent.trim();
+
+    const { error } = await supabase
       .from('sticky_notes')
-      .update({ content: editContent.trim(), updated_at: new Date().toISOString() })
+      .update({ content: trimmedContent, updated_at: new Date().toISOString() })
       .eq('id', note.id);
+
+    if (error) {
+      console.error('Error updating note:', error);
+      alert('Failed to save note');
+    } else {
+      onUpdate(note.id, trimmedContent);
+    }
 
     setIsEditing(false);
   };
@@ -146,13 +155,15 @@ function DayColumn({
   notes,
   onAddNote,
   onDeleteNote,
-  onColorChange
+  onColorChange,
+  onUpdateNote
 }: {
   day: DayOfWeek;
   notes: StickyNote[];
   onAddNote: (day: DayOfWeek) => void;
   onDeleteNote: (id: string) => void;
   onColorChange: (id: string, color: NoteColor) => void;
+  onUpdateNote: (id: string, content: string) => void;
 }) {
   return (
     <div className="flex-1 min-w-[200px] flex flex-col">
@@ -164,7 +175,7 @@ function DayColumn({
       <SortableContext items={notes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
         <div className="flex-1 bg-gray-50 p-3 space-y-3 min-h-[400px] rounded-b-lg border-2 border-t-0 border-gray-200">
           {notes.map((note) => (
-            <StickyNoteCard key={note.id} note={note} onDelete={onDeleteNote} onColorChange={onColorChange} />
+            <StickyNoteCard key={note.id} note={note} onDelete={onDeleteNote} onColorChange={onColorChange} onUpdate={onUpdateNote} />
           ))}
           <button
             onClick={() => onAddNote(day)}
@@ -250,6 +261,10 @@ export function WeeklyKanban() {
     } else {
       setNotes(notes.filter((n) => n.id !== id));
     }
+  };
+
+  const handleUpdateNote = (id: string, content: string) => {
+    setNotes(notes.map((n) => (n.id === id ? { ...n, content } : n)));
   };
 
   const handleColorChange = async (id: string, color: NoteColor) => {
@@ -356,6 +371,7 @@ export function WeeklyKanban() {
                 onAddNote={handleAddNote}
                 onDeleteNote={handleDeleteNote}
                 onColorChange={handleColorChange}
+                onUpdateNote={handleUpdateNote}
               />
             );
           })}
