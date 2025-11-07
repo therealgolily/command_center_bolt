@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { DndContext, DragEndEvent, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors, DragOverEvent, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Plus, Trash2, Palette } from 'lucide-react';
@@ -164,7 +164,8 @@ function DayColumn({
   onAddNote,
   onDeleteNote,
   onColorChange,
-  onUpdateNote
+  onUpdateNote,
+  isOver
 }: {
   day: DayOfWeek;
   dateNumber: number;
@@ -174,7 +175,11 @@ function DayColumn({
   onDeleteNote: (id: string) => void;
   onColorChange: (id: string, color: NoteColor) => void;
   onUpdateNote: (id: string, content: string) => void;
+  isOver?: boolean;
 }) {
+  const droppableId = `${day}-${weekNumber}`;
+  const { setNodeRef } = useDroppable({ id: droppableId });
+
   return (
     <div className="flex-1 min-w-[200px] flex flex-col">
       <div className={`bg-gradient-to-br ${DAY_COLORS[day]} p-4 rounded-t-lg shadow-lg`}>
@@ -183,7 +188,12 @@ function DayColumn({
         </h3>
       </div>
       <SortableContext items={notes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex-1 bg-gray-50 p-3 space-y-3 min-h-[400px] rounded-b-lg border-2 border-t-0 border-gray-200">
+        <div
+          ref={setNodeRef}
+          className={`flex-1 bg-gray-50 p-3 space-y-3 min-h-[400px] rounded-b-lg border-2 border-t-0 border-gray-200 transition-colors ${
+            isOver ? 'bg-blue-100 border-blue-400' : ''
+          }`}
+        >
           {notes.map((note) => (
             <StickyNoteCard key={note.id} note={note} onDelete={onDeleteNote} onColorChange={onColorChange} onUpdate={onUpdateNote} />
           ))}
@@ -205,6 +215,7 @@ export function WeeklyKanban() {
   const [notes, setNotes] = useState<StickyNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeNote, setActiveNote] = useState<StickyNote | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -296,8 +307,13 @@ export function WeeklyKanban() {
     setActiveNote(note || null);
   };
 
+  const handleDragOver = (event: DragOverEvent) => {
+    setOverId(event.over?.id as string || null);
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveNote(null);
+    setOverId(null);
 
     const { active, over } = event;
 
@@ -306,17 +322,23 @@ export function WeeklyKanban() {
     const activeNote = notes.find((n) => n.id === active.id);
     if (!activeNote) return;
 
-    const overNote = notes.find((n) => n.id === over.id);
     let newDay = activeNote.day_of_week;
     let newWeek = activeNote.week_number;
     let newPosition = activeNote.position;
 
+    const overNote = notes.find((n) => n.id === over.id);
     if (overNote) {
       newDay = overNote.day_of_week;
       newWeek = overNote.week_number;
       const dayNotes = notes.filter((n) => n.day_of_week === newDay && n.week_number === newWeek && n.id !== activeNote.id);
       const overIndex = dayNotes.findIndex((n) => n.id === overNote.id);
       newPosition = overIndex >= 0 ? overIndex : dayNotes.length;
+    } else if (typeof over.id === 'string' && over.id.includes('-')) {
+      const [day, week] = over.id.split('-');
+      newDay = day as DayOfWeek;
+      newWeek = parseInt(week);
+      const dayNotes = notes.filter((n) => n.day_of_week === newDay && n.week_number === newWeek && n.id !== activeNote.id);
+      newPosition = dayNotes.length;
     }
 
     if (newDay !== activeNote.day_of_week || newWeek !== activeNote.week_number || newPosition !== activeNote.position) {
@@ -410,6 +432,7 @@ export function WeeklyKanban() {
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <div className="space-y-8">
@@ -430,6 +453,7 @@ export function WeeklyKanban() {
                   onDeleteNote={handleDeleteNote}
                   onColorChange={handleColorChange}
                   onUpdateNote={handleUpdateNote}
+                  isOver={overId === `${day}-0`}
                 />
               );
             })}
@@ -452,6 +476,7 @@ export function WeeklyKanban() {
                   onDeleteNote={handleDeleteNote}
                   onColorChange={handleColorChange}
                   onUpdateNote={handleUpdateNote}
+                  isOver={overId === `${day}-1`}
                 />
               );
             })}
