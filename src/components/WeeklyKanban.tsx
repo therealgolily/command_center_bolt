@@ -81,9 +81,8 @@ function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: Sti
     <div
       ref={setNodeRef}
       style={style}
-      className={`${colorStyle.bg} ${colorStyle.text} p-4 rounded-lg border-2 ${colorStyle.border} shadow-md cursor-grab active:cursor-grabbing relative group`}
+      className={`${colorStyle.bg} ${colorStyle.text} p-4 rounded-lg border-2 ${colorStyle.border} shadow-md relative group`}
       {...attributes}
-      {...listeners}
     >
       <button
         onClick={(e) => {
@@ -124,6 +123,12 @@ function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: Sti
         <Trash2 size={14} />
       </button>
 
+      <div
+        {...listeners}
+        className="absolute top-0 right-10 bottom-0 left-0 cursor-grab active:cursor-grabbing"
+        title="Drag to move"
+      />
+
       {isEditing ? (
         <textarea
           value={editContent}
@@ -131,7 +136,7 @@ function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: Sti
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
           autoFocus
-          className={`w-full ${colorStyle.bg} ${colorStyle.text} resize-none focus:outline-none font-handwriting text-xs`}
+          className={`w-full ${colorStyle.bg} ${colorStyle.text} resize-none focus:outline-none font-handwriting text-xs relative z-10`}
           style={{ minHeight: '60px', height: 'auto' }}
           rows={Math.max(3, editContent.split('\n').length)}
           onClick={(e) => e.stopPropagation()}
@@ -142,7 +147,7 @@ function StickyNoteCard({ note, onDelete, onColorChange, onUpdate }: { note: Sti
             e.stopPropagation();
             setIsEditing(true);
           }}
-          className="whitespace-pre-wrap break-words font-handwriting text-xs cursor-text"
+          className="whitespace-pre-wrap break-words font-handwriting text-xs cursor-text relative z-10"
         >
           {note.content}
         </div>
