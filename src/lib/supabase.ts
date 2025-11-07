@@ -117,6 +117,7 @@ export type StickyNote = {
   position: number;
   color: 'yellow' | 'pink' | 'blue' | 'green' | 'orange' | 'purple';
   week_number: number;
+  assigned_date: string | null;
   created_at: string;
   updated_at: string;
 };
