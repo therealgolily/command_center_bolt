@@ -27,13 +27,17 @@ function DraggableStickyNote({ note }: { note: StickyNote }) {
       }
     : undefined;
 
+  const isInCalendar = note.assigned_date !== null;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...listeners}
       {...attributes}
-      className={`${NOTE_COLORS[note.color].bg} ${NOTE_COLORS[note.color].text} p-1 rounded text-[9px] leading-tight border ${NOTE_COLORS[note.color].border} cursor-move hover:shadow-md transition-shadow`}
+      className={`${NOTE_COLORS[note.color].bg} ${NOTE_COLORS[note.color].text} ${
+        isInCalendar ? 'p-1 text-[9px]' : 'p-2 text-xs'
+      } rounded leading-tight border ${NOTE_COLORS[note.color].border} cursor-move hover:shadow-md transition-shadow`}
     >
       <div className="whitespace-pre-wrap break-words font-handwriting">
         {note.content}
@@ -69,7 +73,6 @@ export function CalendarPage() {
     const { data, error } = await supabase
       .from('sticky_notes')
       .select('*')
-      .not('assigned_date', 'is', null)
       .order('position', { ascending: true });
 
     if (!error && data) {
@@ -150,6 +153,10 @@ export function CalendarPage() {
     return notes.filter((n) => n.assigned_date === dateString);
   };
 
+  const getUnassignedNotes = () => {
+    return notes.filter((n) => n.assigned_date === null);
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     const note = notes.find((n) => n.id === event.active.id);
     setActiveNote(note || null);
@@ -223,6 +230,8 @@ export function CalendarPage() {
     );
   }
 
+  const unassignedNotes = getUnassignedNotes();
+
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="space-y-6">
@@ -271,6 +280,17 @@ export function CalendarPage() {
             </button>
           </div>
         </div>
+
+        {unassignedNotes.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-[#1e293b] mb-3">unassigned notes - drag to calendar</h3>
+            <div className="flex flex-wrap gap-2">
+              {unassignedNotes.map((note) => (
+                <DraggableStickyNote key={note.id} note={note} />
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className={`grid ${gridCols[viewMode]} gap-6`}>
           {months.map(({ year, month }) => {
